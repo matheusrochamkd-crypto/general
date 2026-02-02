@@ -9,6 +9,7 @@ import { RewardVault } from './components/RewardVault';
 import { VehicleRoadmap } from './components/VehicleRoadmap';
 import { RevenueTimeline } from './components/RevenueTimeline';
 import { CommandCenter } from './components/CommandCenter';
+import { BucketList } from './components/BucketList';
 import { PageTransition } from './components/PageTransition'; // Import Transition
 import { incomeProjections } from './data/incomeProjections'; // Import Projections
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -25,6 +26,7 @@ const Dashboard: React.FC = () => {
   const [showVehicleRoadmap, setShowVehicleRoadmap] = useState(false);
   const [showRevenueTimeline, setShowRevenueTimeline] = useState(false);
   const [showCommandCenter, setShowCommandCenter] = useState(false);
+  const [showBucketList, setShowBucketList] = useState(false);
 
   // Clock
   useEffect(() => {
@@ -422,7 +424,7 @@ const Dashboard: React.FC = () => {
 
   // Renderização principal com Transições (NEW)
   // Verifica se alguma página interna está aberta
-  const isInternalPageOpen = showRewardVault || showVehicleRoadmap || showRevenueTimeline || showCommandCenter;
+  const isInternalPageOpen = showRewardVault || showVehicleRoadmap || showRevenueTimeline || showCommandCenter || showBucketList;
 
   return (
     <div className="min-h-screen text-text-primary relative overflow-hidden">
@@ -444,6 +446,7 @@ const Dashboard: React.FC = () => {
           setShowVehicleRoadmap(false);
           setShowRevenueTimeline(false);
           setShowCommandCenter(false);
+          setShowBucketList(false);
           setCurrentMonth(monthId);
         }}
         onOpenRewardVault={() => {
@@ -451,6 +454,7 @@ const Dashboard: React.FC = () => {
           setShowVehicleRoadmap(false);
           setShowRevenueTimeline(false);
           setShowCommandCenter(false);
+          setShowBucketList(false);
           setShowRewardVault(true);
         }}
         onOpenVehicleRoadmap={() => {
@@ -458,6 +462,7 @@ const Dashboard: React.FC = () => {
           setShowRewardVault(false);
           setShowRevenueTimeline(false);
           setShowCommandCenter(false);
+          setShowBucketList(false);
           setShowVehicleRoadmap(true);
         }}
         onOpenRevenueTimeline={() => {
@@ -465,6 +470,7 @@ const Dashboard: React.FC = () => {
           setShowRewardVault(false);
           setShowVehicleRoadmap(false);
           setShowCommandCenter(false);
+          setShowBucketList(false);
           setShowRevenueTimeline(true);
         }}
         onOpenCommandCenter={() => {
@@ -472,7 +478,16 @@ const Dashboard: React.FC = () => {
           setShowRewardVault(false);
           setShowVehicleRoadmap(false);
           setShowRevenueTimeline(false);
+          setShowBucketList(false);
           setShowCommandCenter(true);
+        }}
+        onOpenBucketList={() => {
+          // Close other pages, open this one
+          setShowRewardVault(false);
+          setShowVehicleRoadmap(false);
+          setShowRevenueTimeline(false);
+          setShowCommandCenter(false);
+          setShowBucketList(true);
         }}
       />
 
@@ -513,6 +528,12 @@ const Dashboard: React.FC = () => {
             totalCost={totalCost}
             coveragePercent={coveragePercent}
             missionGap={missionGap}
+          />
+        </PageTransition>
+
+        <PageTransition isVisible={showBucketList}>
+          <BucketList
+            onBack={() => setShowBucketList(false)}
           />
         </PageTransition>
 

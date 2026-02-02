@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MonthData } from '../types';
-import { ChevronDown, Calendar, Car, Trophy, TrendingUp, Radio } from 'lucide-react';
+import { ChevronDown, Calendar, Car, Trophy, TrendingUp, Radio, Scroll } from 'lucide-react';
 
 interface SidebarProps {
   months: MonthData[];
@@ -10,9 +10,10 @@ interface SidebarProps {
   onOpenVehicleRoadmap?: () => void;
   onOpenRevenueTimeline?: () => void;
   onOpenCommandCenter?: () => void;
+  onOpenBucketList?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSelectMonth, onOpenRewardVault, onOpenVehicleRoadmap, onOpenRevenueTimeline, onOpenCommandCenter }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSelectMonth, onOpenRewardVault, onOpenVehicleRoadmap, onOpenRevenueTimeline, onOpenCommandCenter, onOpenBucketList }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -163,6 +164,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
           >
             <Radio className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Comando Central</span>
+          </button>
+        )}
+
+        {/* Bucket List Button */}
+        {onOpenBucketList && (
+          <button
+            onClick={onOpenBucketList}
+            className="w-full py-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center gap-2 text-purple-400 hover:bg-purple-500/20 transition-all"
+          >
+            <Scroll className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Lista de Vida</span>
           </button>
         )}
       </div>
