@@ -235,8 +235,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     };
 
     return (
-        <div className="absolute inset-0 z-50 bg-[#0A0A0A] overflow-hidden flex flex-col"
-            style={{ marginLeft: 0 }}
+        <div className="fixed top-0 right-0 bottom-0 left-72 z-[100] bg-[#0A0A0A] overflow-hidden flex flex-col"
         >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0A0A0A]">
