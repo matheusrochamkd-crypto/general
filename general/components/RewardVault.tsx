@@ -14,7 +14,8 @@ interface Mission {
     subtitle: string;
     description: string;
     cost: number;
-    unlockThreshold: number;
+    unlockThreshold?: number;
+    unlockAmount?: number; // absolute value
     backgroundImage: string;
     icon: React.ReactNode;
 }
@@ -43,20 +44,25 @@ export const RewardVault: React.FC<RewardVaultProps> = ({
             icon: <Mountain className="w-6 h-6" />
         },
         {
-            id: 'expedition',
+            id: 'epje-cascavel',
             level: 2,
-            codename: 'EXPEDIÇÃO VENTO SUL',
-            subtitle: 'Trilha Guiada Premium',
-            description: 'Expedição completa com guia profissional, equipamentos e hospedagem em refúgio de montanha.',
-            cost: 200,
-            unlockThreshold: 100,
-            backgroundImage: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=800&q=80',
+            codename: 'OPERAÇÃO EPJE',
+            subtitle: 'Viagem Cascavel (10 amigos)',
+            description: 'Viagem com 10 amigos e colegas para participar do EPJE. Meta de R$ 3.000 no fundo do carro para liberar.',
+            cost: 300,
+            unlockAmount: 3000,
+            backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&q=80', // Friends/Trip vibe
             icon: <Compass className="w-6 h-6" />
         }
     ];
 
-    const calculateAmountToUnlock = (threshold: number) => {
-        const requiredAmount = (threshold / 100) * metaMensalCarro;
+    const calculateAmountToUnlock = (mission: Mission) => {
+        let requiredAmount = 0;
+        if (mission.unlockAmount !== undefined) {
+            requiredAmount = mission.unlockAmount;
+        } else if (mission.unlockThreshold !== undefined) {
+            requiredAmount = (mission.unlockThreshold / 100) * metaMensalCarro;
+        }
         return Math.max(0, requiredAmount - valorGuardadoAtual);
     };
 
@@ -183,8 +189,11 @@ export const RewardVault: React.FC<RewardVaultProps> = ({
                     {/* Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         {missions.map((mission) => {
-                            const isUnlocked = progressPercent >= mission.unlockThreshold;
-                            const amountToUnlock = calculateAmountToUnlock(mission.unlockThreshold);
+                            const isUnlocked = mission.unlockAmount
+                                ? valorGuardadoAtual >= mission.unlockAmount
+                                : progressPercent >= (mission.unlockThreshold || 100);
+
+                            const amountToUnlock = calculateAmountToUnlock(mission);
 
                             return (
                                 <div
