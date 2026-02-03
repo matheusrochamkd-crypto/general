@@ -35,7 +35,7 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 // Pure mapping functions (outside component to avoid initialization issues)
-const mapFromDb = (row: any): AgendaEvent => ({
+const mapAgendaEventFromDb = (row: any): AgendaEvent => ({
     id: row.id,
     title: row.title,
     description: row.description || '',
@@ -46,7 +46,7 @@ const mapFromDb = (row: any): AgendaEvent => ({
     completed: row.completed || false,
 });
 
-const mapToDb = (event: AgendaEvent) => ({
+const mapAgendaEventToDb = (event: AgendaEvent) => ({
     id: event.id,
     title: event.title,
     description: event.description,
@@ -58,6 +58,8 @@ const mapToDb = (event: AgendaEvent) => ({
 });
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
+    console.log('EventsAgenda mounting...');
+
     const [events, setEvents] = useState<AgendaEvent[]>([]);
     const [isSynced, setIsSynced] = useState<boolean | null>(null); // null = loading, true = synced, false = offline
     const [lastSyncTime, setLastSyncTime] = useState<string>('');
@@ -131,7 +133,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         const syncLocalToSupabaseInner = async (localEvents: AgendaEvent[]) => {
             try {
                 for (const event of localEvents) {
-                    await supabase.from('agenda_events').upsert(mapToDb(event), { onConflict: 'id' });
+                    await supabase.from('agenda_events').upsert(mapAgendaEventToDb(event), { onConflict: 'id' });
                 }
                 setIsSynced(true);
                 setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
@@ -154,7 +156,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     setEvents(local);
                     setIsSynced(false);
                 } else if (data && data.length > 0) {
-                    const mapped = data.map(mapFromDb);
+                    const mapped = data.map(mapAgendaEventFromDb);
                     setEvents(mapped);
                     localStorage.setItem('agenda_events_2026_v2', JSON.stringify(mapped));
                     setIsSynced(true);
@@ -187,7 +189,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
 
         try {
-            const { error } = await supabase.from('agenda_events').upsert(mapToDb(event), { onConflict: 'id' });
+            const { error } = await supabase.from('agenda_events').upsert(mapAgendaEventToDb(event), { onConflict: 'id' });
             if (error) throw error;
             setIsSynced(true);
             setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
