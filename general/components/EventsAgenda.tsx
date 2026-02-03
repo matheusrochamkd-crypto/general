@@ -94,34 +94,54 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     }, []);
 
     const loadFromLocalStorage = (): AgendaEvent[] => {
-        // Try new format first
-        const savedNew = localStorage.getItem('agenda_events_2026_v2');
-        if (savedNew) {
-            const parsed = JSON.parse(savedNew);
-            setEvents(parsed);
-            return parsed;
-        }
-        // Migrate from old format
-        const savedOld = localStorage.getItem('agenda_events_2026');
-        if (savedOld) {
-            try {
+        try {
+            // Try new format first
+            const savedNew = localStorage.getItem('agenda_events_2026_v2');
+            if (savedNew) {
+                const parsed = JSON.parse(savedNew);
+                // Validate that it's an array
+                if (!Array.isArray(parsed)) {
+                    console.warn('Invalid data format, clearing localStorage');
+                    localStorage.removeItem('agenda_events_2026_v2');
+                    return [];
+                }
+                // Validate and fix each event
+                const validEvents = parsed.filter((e: any) => e && e.id && e.title).map((e: any) => ({
+                    id: String(e.id),
+                    title: String(e.title || ''),
+                    description: String(e.description || ''),
+                    startDate: String(e.startDate || e.date || ''),
+                    endDate: String(e.endDate || e.startDate || e.date || ''),
+                    time: String(e.time || ''),
+                    type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
+                    completed: Boolean(e.completed),
+                }));
+                setEvents(validEvents);
+                return validEvents;
+            }
+            // Migrate from old format
+            const savedOld = localStorage.getItem('agenda_events_2026');
+            if (savedOld) {
                 const oldEvents = JSON.parse(savedOld);
-                const migratedEvents = oldEvents.map((e: any) => ({
-                    id: e.id,
-                    title: e.title,
-                    description: e.description || '',
-                    startDate: e.date || e.startDate,
-                    endDate: e.date || e.endDate || e.startDate,
-                    time: e.time || '',
-                    type: e.type || 'EVENT',
-                    completed: e.completed || false,
+                if (!Array.isArray(oldEvents)) return [];
+                const migratedEvents = oldEvents.filter((e: any) => e && e.id).map((e: any) => ({
+                    id: String(e.id),
+                    title: String(e.title || ''),
+                    description: String(e.description || ''),
+                    startDate: String(e.date || e.startDate || ''),
+                    endDate: String(e.date || e.endDate || e.startDate || ''),
+                    time: String(e.time || ''),
+                    type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
+                    completed: Boolean(e.completed),
                 }));
                 localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
                 setEvents(migratedEvents);
                 return migratedEvents;
-            } catch (err) {
-                console.error('Error migrating:', err);
             }
+        } catch (err) {
+            console.error('Error loading from localStorage, clearing corrupted data:', err);
+            localStorage.removeItem('agenda_events_2026_v2');
+            localStorage.removeItem('agenda_events_2026');
         }
         return [];
     };
@@ -420,7 +440,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                             <div className="flex items-center gap-3 mt-1">
                                 <p className="text-sm text-text-muted">Arraste nos dias para eventos de múltiplos dias</p>
                                 <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${isSynced === null ? 'bg-gray-500/20 text-gray-400' :
-                                        isSynced ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                    isSynced ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
                                     }`}>
                                     {isSynced === null ? (
                                         <><span className="animate-pulse">●</span> Carregando...</>
