@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Target, TrendingUp, Car, Trophy, Zap, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Lock, Target, TrendingUp, Car, Trophy, Zap, CheckCircle2, AlertCircle, Cloud, CloudOff } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 interface VehicleRoadmapProps {
     currentMonthlyIncome?: number;
@@ -77,34 +78,109 @@ const roadmapData: Vehicle[] = [
 ];
 
 const CHECKIN_MONTHS = [
-    { id: 'mar-26', label: 'MAR' },
-    { id: 'apr-26', label: 'ABR' },
-    { id: 'may-26', label: 'MAI' },
-    { id: 'jun-26', label: 'JUN' },
-    { id: 'jul-26', label: 'JUL' },
-    { id: 'aug-26', label: 'AGO' },
-    { id: 'sep-26', label: 'SET' },
-    { id: 'oct-26', label: 'OUT' },
-    { id: 'nov-26', label: 'NOV' },
-    { id: 'dec-26', label: 'DEZ' },
-    { id: 'jan-27', label: 'JAN' },
-    { id: 'feb-27', label: 'FEV' },
+    { id: 'mar-26', label: 'MAR', index: 0 },
+    { id: 'apr-26', label: 'ABR', index: 1 },
+    { id: 'may-26', label: 'MAI', index: 2 },
+    { id: 'jun-26', label: 'JUN', index: 3 },
+    { id: 'jul-26', label: 'JUL', index: 4 },
+    { id: 'aug-26', label: 'AGO', index: 5 },
+    { id: 'sep-26', label: 'SET', index: 6 },
+    { id: 'oct-26', label: 'OUT', index: 7 },
+    { id: 'nov-26', label: 'NOV', index: 8 },
+    { id: 'dec-26', label: 'DEZ', index: 9 },
+    { id: 'jan-27', label: 'JAN', index: 10 },
+    { id: 'feb-27', label: 'FEV', index: 11 },
 ];
 
 export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIncome = 0 }) => {
-    // State for paid months (Contribution Check-in)
-    const [paidMonths, setPaidMonths] = useState<string[]>(() => {
-        const saved = localStorage.getItem('vehicle_fund_checkins');
-        return saved ? JSON.parse(saved) : [];
-    });
+    const [paidMonths, setPaidMonths] = useState<string[]>([]);
+    const [isSynced, setIsSynced] = useState<boolean | null>(null);
 
-    const toggleMonth = (monthId: string) => {
-        const newPaidMonths = paidMonths.includes(monthId)
+    // Load from Supabase on mount
+    useEffect(() => {
+        const loadData = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('vehicle_fund_checkins')
+                    .select('*');
+
+                if (error) {
+                    console.warn('Supabase error:', error.message);
+                    loadFromLocalStorage();
+                    setIsSynced(false);
+                } else if (data && data.length > 0) {
+                    const monthIds = data.map(row => {
+                        const month = CHECKIN_MONTHS.find(m => m.index === row.month_index);
+                        return month?.id;
+                    }).filter(Boolean) as string[];
+                    setPaidMonths(monthIds);
+                    localStorage.setItem('vehicle_fund_checkins', JSON.stringify(monthIds));
+                    setIsSynced(true);
+                } else {
+                    const local = loadFromLocalStorage();
+                    if (local.length > 0) {
+                        await syncToSupabase(local);
+                    }
+                    setIsSynced(true);
+                }
+            } catch (err) {
+                console.error('Error:', err);
+                loadFromLocalStorage();
+                setIsSynced(false);
+            }
+        };
+        loadData();
+    }, []);
+
+    const loadFromLocalStorage = (): string[] => {
+        const saved = localStorage.getItem('vehicle_fund_checkins');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            setPaidMonths(parsed);
+            return parsed;
+        }
+        return [];
+    };
+
+    const syncToSupabase = async (monthIds: string[]) => {
+        for (const monthId of monthIds) {
+            const month = CHECKIN_MONTHS.find(m => m.id === monthId);
+            if (month) {
+                await supabase.from('vehicle_fund_checkins').upsert({
+                    month_index: month.index,
+                    paid: true
+                }, { onConflict: 'month_index' });
+            }
+        }
+        setIsSynced(true);
+    };
+
+    const toggleMonth = async (monthId: string) => {
+        const isPaid = paidMonths.includes(monthId);
+        const newPaidMonths = isPaid
             ? paidMonths.filter(id => id !== monthId)
             : [...paidMonths, monthId];
 
         setPaidMonths(newPaidMonths);
         localStorage.setItem('vehicle_fund_checkins', JSON.stringify(newPaidMonths));
+
+        const month = CHECKIN_MONTHS.find(m => m.id === monthId);
+        if (!month) return;
+
+        try {
+            if (isPaid) {
+                await supabase.from('vehicle_fund_checkins').delete().eq('month_index', month.index);
+            } else {
+                await supabase.from('vehicle_fund_checkins').upsert({
+                    month_index: month.index,
+                    paid: true
+                }, { onConflict: 'month_index' });
+            }
+            setIsSynced(true);
+        } catch (err) {
+            console.error('Save failed:', err);
+            setIsSynced(false);
+        }
     };
 
     const formatCurrency = (val: number) => {

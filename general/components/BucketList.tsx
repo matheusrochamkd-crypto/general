@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle2, Circle, Mountain, Flag, BookOpen, Scroll } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Circle, Mountain, Flag, BookOpen, Scroll, Cloud, CloudOff } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 interface BucketListProps {
     onBack: () => void;
@@ -21,22 +22,83 @@ interface Category {
 }
 
 export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
-    // Initial State loading from localStorage if implemented later
-    const [checkedState, setCheckedState] = useState<Record<string, boolean>>(() => {
-        const saved = localStorage.getItem('bucket_list_state');
-        return saved ? JSON.parse(saved) : {};
-    });
+    const [checkedState, setCheckedState] = useState<Record<string, boolean>>({});
+    const [isSynced, setIsSynced] = useState<boolean | null>(null);
 
-    // Save to localStorage whenever state changes
+    // Load from Supabase on mount, fallback to localStorage
     useEffect(() => {
-        localStorage.setItem('bucket_list_state', JSON.stringify(checkedState));
-    }, [checkedState]);
+        const loadData = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('bucket_list_items')
+                    .select('*');
 
-    const toggleItem = (id: string) => {
-        setCheckedState(prev => ({
-            ...prev,
-            [id]: !prev[id]
-        }));
+                if (error) {
+                    console.warn('Supabase error, using localStorage:', error.message);
+                    loadFromLocalStorage();
+                    setIsSynced(false);
+                } else if (data && data.length > 0) {
+                    const state: Record<string, boolean> = {};
+                    data.forEach(item => { state[item.id] = item.completed; });
+                    setCheckedState(state);
+                    localStorage.setItem('bucket_list_state', JSON.stringify(state));
+                    setIsSynced(true);
+                } else {
+                    // No data in Supabase, try localStorage and sync up
+                    const local = loadFromLocalStorage();
+                    if (Object.keys(local).length > 0) {
+                        await syncToSupabase(local);
+                    }
+                    setIsSynced(true);
+                }
+            } catch (err) {
+                console.error('Error loading:', err);
+                loadFromLocalStorage();
+                setIsSynced(false);
+            }
+        };
+        loadData();
+    }, []);
+
+    const loadFromLocalStorage = (): Record<string, boolean> => {
+        const saved = localStorage.getItem('bucket_list_state');
+        if (saved) {
+            const parsed = JSON.parse(saved);
+            setCheckedState(parsed);
+            return parsed;
+        }
+        return {};
+    };
+
+    const syncToSupabase = async (state: Record<string, boolean>) => {
+        for (const [id, completed] of Object.entries(state)) {
+            await supabase.from('bucket_list_items').upsert({
+                id,
+                completed,
+                completed_at: completed ? new Date().toISOString() : null
+            }, { onConflict: 'id' });
+        }
+        setIsSynced(true);
+    };
+
+    const toggleItem = async (id: string) => {
+        const newCompleted = !checkedState[id];
+        const newState = { ...checkedState, [id]: newCompleted };
+        setCheckedState(newState);
+        localStorage.setItem('bucket_list_state', JSON.stringify(newState));
+
+        try {
+            const { error } = await supabase.from('bucket_list_items').upsert({
+                id,
+                completed: newCompleted,
+                completed_at: newCompleted ? new Date().toISOString() : null
+            }, { onConflict: 'id' });
+            if (error) throw error;
+            setIsSynced(true);
+        } catch (err) {
+            console.error('Save failed:', err);
+            setIsSynced(false);
+        }
     };
 
     const categories: Category[] = [
