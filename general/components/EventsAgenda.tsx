@@ -35,8 +35,35 @@ const TYPE_LABELS: Record<string, string> = {
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [events, setEvents] = useState<AgendaEvent[]>(() => {
-        const saved = localStorage.getItem('agenda_events_2026_v2');
-        return saved ? JSON.parse(saved) : [];
+        // Try new format first
+        const savedNew = localStorage.getItem('agenda_events_2026_v2');
+        if (savedNew) {
+            return JSON.parse(savedNew);
+        }
+
+        // Migrate from old format if exists
+        const savedOld = localStorage.getItem('agenda_events_2026');
+        if (savedOld) {
+            try {
+                const oldEvents = JSON.parse(savedOld);
+                const migratedEvents = oldEvents.map((e: any) => ({
+                    id: e.id,
+                    title: e.title,
+                    description: e.description || '',
+                    startDate: e.date || e.startDate,
+                    endDate: e.date || e.endDate || e.startDate,
+                    time: e.time || '',
+                    type: e.type || 'EVENT',
+                    completed: e.completed || false,
+                }));
+                localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
+                return migratedEvents;
+            } catch (err) {
+                console.error('Error migrating events:', err);
+            }
+        }
+
+        return [];
     });
 
     const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
@@ -360,8 +387,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                                     key={event.id}
                                                     onClick={(e) => e.stopPropagation()}
                                                     className={`text-[11px] px-1.5 py-0.5 truncate ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} ${isMultiDay
-                                                            ? `${isStart ? 'rounded-l' : 'rounded-none -ml-2'} ${isEnd ? 'rounded-r' : 'rounded-none -mr-2'}`
-                                                            : 'rounded'
+                                                        ? `${isStart ? 'rounded-l' : 'rounded-none -ml-2'} ${isEnd ? 'rounded-r' : 'rounded-none -mr-2'}`
+                                                        : 'rounded'
                                                         }`}
                                                 >
                                                     {(isStart || !isMultiDay) && event.title}
@@ -483,8 +510,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                                 type="button"
                                                 onClick={() => setFormType(type)}
                                                 className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${formType === type
-                                                        ? `${EVENT_COLORS[type].bg} ${EVENT_COLORS[type].text} border-current`
-                                                        : 'border-white/10 text-text-muted hover:text-white'
+                                                    ? `${EVENT_COLORS[type].bg} ${EVENT_COLORS[type].text} border-current`
+                                                    : 'border-white/10 text-text-muted hover:text-white'
                                                     }`}
                                             >
                                                 {TYPE_LABELS[type]}
