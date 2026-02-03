@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Plus, Calendar, CheckCircle2, Circle, Trash2, ChevronLeft, ChevronRight, Sparkles, X, AlertTriangle, TrendingUp, Clock, Users, ListTodo } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { ArrowLeft, Plus, Calendar, CheckCircle2, Circle, Trash2, ChevronLeft, ChevronRight, Sparkles, X, AlertTriangle, TrendingUp, ListTodo, Cloud, CloudOff } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 
 interface EventsAgendaProps {
     onBack: () => void;
@@ -34,37 +35,9 @@ const TYPE_LABELS: Record<string, string> = {
 };
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
-    const [events, setEvents] = useState<AgendaEvent[]>(() => {
-        // Try new format first
-        const savedNew = localStorage.getItem('agenda_events_2026_v2');
-        if (savedNew) {
-            return JSON.parse(savedNew);
-        }
-
-        // Migrate from old format if exists
-        const savedOld = localStorage.getItem('agenda_events_2026');
-        if (savedOld) {
-            try {
-                const oldEvents = JSON.parse(savedOld);
-                const migratedEvents = oldEvents.map((e: any) => ({
-                    id: e.id,
-                    title: e.title,
-                    description: e.description || '',
-                    startDate: e.date || e.startDate,
-                    endDate: e.date || e.endDate || e.startDate,
-                    time: e.time || '',
-                    type: e.type || 'EVENT',
-                    completed: e.completed || false,
-                }));
-                localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
-                return migratedEvents;
-            } catch (err) {
-                console.error('Error migrating events:', err);
-            }
-        }
-
-        return [];
-    });
+    const [events, setEvents] = useState<AgendaEvent[]>([]);
+    const [isSynced, setIsSynced] = useState<boolean | null>(null); // null = loading, true = synced, false = offline
+    const [lastSyncTime, setLastSyncTime] = useState<string>('');
 
     const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
     const [showAddModal, setShowAddModal] = useState(false);
@@ -83,9 +56,142 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [formTime, setFormTime] = useState('');
     const [formType, setFormType] = useState<'MEETING' | 'TASK' | 'REMINDER' | 'EVENT'>('EVENT');
 
+    // Load events from Supabase on mount, fallback to localStorage
     useEffect(() => {
-        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(events));
-    }, [events]);
+        const loadEvents = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('agenda_events')
+                    .select('*')
+                    .order('start_date', { ascending: true });
+
+                if (error) {
+                    console.warn('Supabase error, using localStorage:', error.message);
+                    loadFromLocalStorage();
+                    setIsSynced(false);
+                } else if (data && data.length > 0) {
+                    const mapped = data.map(mapFromDb);
+                    setEvents(mapped);
+                    localStorage.setItem('agenda_events_2026_v2', JSON.stringify(mapped));
+                    setIsSynced(true);
+                    setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+                } else {
+                    // No data in Supabase, try localStorage and sync up
+                    const local = loadFromLocalStorage();
+                    if (local.length > 0) {
+                        await syncLocalToSupabase(local);
+                    }
+                    setIsSynced(true);
+                }
+            } catch (err) {
+                console.error('Error loading events:', err);
+                loadFromLocalStorage();
+                setIsSynced(false);
+            }
+        };
+
+        loadEvents();
+    }, []);
+
+    const loadFromLocalStorage = (): AgendaEvent[] => {
+        // Try new format first
+        const savedNew = localStorage.getItem('agenda_events_2026_v2');
+        if (savedNew) {
+            const parsed = JSON.parse(savedNew);
+            setEvents(parsed);
+            return parsed;
+        }
+        // Migrate from old format
+        const savedOld = localStorage.getItem('agenda_events_2026');
+        if (savedOld) {
+            try {
+                const oldEvents = JSON.parse(savedOld);
+                const migratedEvents = oldEvents.map((e: any) => ({
+                    id: e.id,
+                    title: e.title,
+                    description: e.description || '',
+                    startDate: e.date || e.startDate,
+                    endDate: e.date || e.endDate || e.startDate,
+                    time: e.time || '',
+                    type: e.type || 'EVENT',
+                    completed: e.completed || false,
+                }));
+                localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
+                setEvents(migratedEvents);
+                return migratedEvents;
+            } catch (err) {
+                console.error('Error migrating:', err);
+            }
+        }
+        return [];
+    };
+
+    const mapFromDb = (row: any): AgendaEvent => ({
+        id: row.id,
+        title: row.title,
+        description: row.description || '',
+        startDate: row.start_date,
+        endDate: row.end_date || row.start_date,
+        time: row.time || '',
+        type: row.type || 'EVENT',
+        completed: row.completed || false,
+    });
+
+    const mapToDb = (event: AgendaEvent) => ({
+        id: event.id,
+        title: event.title,
+        description: event.description,
+        start_date: event.startDate,
+        end_date: event.endDate,
+        time: event.time,
+        type: event.type,
+        completed: event.completed,
+    });
+
+    const syncLocalToSupabase = async (localEvents: AgendaEvent[]) => {
+        try {
+            for (const event of localEvents) {
+                await supabase.from('agenda_events').upsert(mapToDb(event), { onConflict: 'id' });
+            }
+            setIsSynced(true);
+            setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+        } catch (err) {
+            console.error('Sync error:', err);
+            setIsSynced(false);
+        }
+    };
+
+    // Save to both localStorage and Supabase
+    const saveEvent = async (event: AgendaEvent, isNew: boolean = true) => {
+        const newEvents = isNew ? [...events, event] : events.map(e => e.id === event.id ? event : e);
+        setEvents(newEvents);
+        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
+
+        try {
+            const { error } = await supabase.from('agenda_events').upsert(mapToDb(event), { onConflict: 'id' });
+            if (error) throw error;
+            setIsSynced(true);
+            setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+        } catch (err) {
+            console.error('Save to Supabase failed:', err);
+            setIsSynced(false);
+        }
+    };
+
+    const removeEvent = async (id: string) => {
+        const newEvents = events.filter(e => e.id !== id);
+        setEvents(newEvents);
+        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
+
+        try {
+            const { error } = await supabase.from('agenda_events').delete().eq('id', id);
+            if (error) throw error;
+            setIsSynced(true);
+        } catch (err) {
+            console.error('Delete from Supabase failed:', err);
+            setIsSynced(false);
+        }
+    };
 
     // Calendar generation
     const calendarDays = useMemo(() => {
@@ -180,7 +286,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setShowAddModal(true);
     };
 
-    const handleSaveEvent = () => {
+    const handleSaveEvent = async () => {
         if (!formTitle || !formStartDate) return;
 
         const newEvent: AgendaEvent = {
@@ -194,12 +300,17 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             completed: false,
         };
 
-        setEvents([...events, newEvent]);
+        await saveEvent(newEvent, true);
         setShowAddModal(false);
     };
 
-    const deleteEvent = (id: string) => setEvents(events.filter(e => e.id !== id));
-    const toggleComplete = (id: string) => setEvents(events.map(e => e.id === id ? { ...e, completed: !e.completed } : e));
+    const toggleComplete = async (id: string) => {
+        const event = events.find(e => e.id === id);
+        if (event) {
+            const updated = { ...event, completed: !event.completed };
+            await saveEvent(updated, false);
+        }
+    };
 
     // AI Analysis
     const aiAnalysis = useMemo(() => {
@@ -306,7 +417,20 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         </div>
                         <div>
                             <h1 className="text-3xl font-bold text-white uppercase tracking-wider">Agenda 2026</h1>
-                            <p className="text-sm text-text-muted mt-1">Arraste nos dias para eventos de múltiplos dias</p>
+                            <div className="flex items-center gap-3 mt-1">
+                                <p className="text-sm text-text-muted">Arraste nos dias para eventos de múltiplos dias</p>
+                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${isSynced === null ? 'bg-gray-500/20 text-gray-400' :
+                                        isSynced ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
+                                    }`}>
+                                    {isSynced === null ? (
+                                        <><span className="animate-pulse">●</span> Carregando...</>
+                                    ) : isSynced ? (
+                                        <><Cloud className="w-3 h-3" /> Sincronizado {lastSyncTime && `às ${lastSyncTime}`}</>
+                                    ) : (
+                                        <><CloudOff className="w-3 h-3" /> Offline (salvando localmente)</>
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -435,7 +559,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         {event.description && <p className="text-sm text-text-muted mt-0.5">{event.description}</p>}
                                     </div>
 
-                                    <button onClick={() => deleteEvent(event.id)} className="opacity-0 group-hover:opacity-100 p-2 text-text-muted hover:text-red-500 transition-all">
+                                    <button onClick={() => removeEvent(event.id)} className="opacity-0 group-hover:opacity-100 p-2 text-text-muted hover:text-red-500 transition-all">
                                         <Trash2 className="w-4 h-4" />
                                     </button>
                                 </div>
@@ -658,6 +782,6 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
