@@ -235,7 +235,9 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     };
 
     return (
-        <div className="fixed inset-0 z-50 bg-[#0A0A0A] overflow-hidden flex flex-col animate-in fade-in duration-300">
+        <div className="absolute inset-0 z-50 bg-[#0A0A0A] overflow-hidden flex flex-col"
+            style={{ marginLeft: 0 }}
+        >
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-white/10 bg-[#0A0A0A]">
                 <div className="flex items-center gap-4">
@@ -281,8 +283,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 key={mode}
                                 onClick={() => setViewMode(mode)}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${viewMode === mode
-                                        ? 'bg-orange-500 text-white'
-                                        : 'text-text-muted hover:text-white'
+                                    ? 'bg-orange-500 text-white'
+                                    : 'text-text-muted hover:text-white'
                                     }`}
                             >
                                 {mode === 'month' ? 'Mês' : mode === 'week' ? 'Semana' : 'Dia'}
@@ -409,8 +411,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         type="button"
                                         onClick={() => setNewEventType(type)}
                                         className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${newEventType === type
-                                                ? `${EVENT_COLORS[type].bg} ${EVENT_COLORS[type].text} ${EVENT_COLORS[type].border}`
-                                                : 'border-white/10 text-text-muted hover:text-white hover:border-white/20'
+                                            ? `${EVENT_COLORS[type].bg} ${EVENT_COLORS[type].text} ${EVENT_COLORS[type].border}`
+                                            : 'border-white/10 text-text-muted hover:text-white hover:border-white/20'
                                             }`}
                                     >
                                         {type === 'MEETING' ? 'Reunião' : type === 'TASK' ? 'Tarefa' : type === 'REMINDER' ? 'Lembrete' : 'Evento'}
@@ -557,12 +559,12 @@ const MiniCalendar: React.FC<MiniCalendarProps> = ({ currentDate, onDateSelect, 
                         onClick={() => day && onDateSelect(day)}
                         disabled={!day}
                         className={`aspect-square text-xs rounded-full flex items-center justify-center transition-all relative ${day
-                                ? isSelected(day)
-                                    ? 'bg-orange-500 text-white'
-                                    : isToday(day)
-                                        ? 'text-orange-500 font-bold'
-                                        : 'text-text-secondary hover:bg-white/5'
-                                : ''
+                            ? isSelected(day)
+                                ? 'bg-orange-500 text-white'
+                                : isToday(day)
+                                    ? 'text-orange-500 font-bold'
+                                    : 'text-text-secondary hover:bg-white/5'
+                            : ''
                             }`}
                     >
                         {day?.getDate()}
@@ -614,8 +616,8 @@ const MonthView: React.FC<MonthViewProps> = ({ days, getEventsForDay, isToday, o
                         >
                             <div
                                 className={`w-7 h-7 flex items-center justify-center text-sm mb-1 rounded-full ${isToday(date)
-                                        ? 'bg-orange-500 text-white font-bold'
-                                        : 'text-text-secondary'
+                                    ? 'bg-orange-500 text-white font-bold'
+                                    : 'text-text-secondary'
                                     }`}
                             >
                                 {date.getDate()}
