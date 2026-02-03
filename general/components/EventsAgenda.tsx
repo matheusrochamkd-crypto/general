@@ -181,6 +181,36 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     }
                     setIsSynced(true);
                 }
+
+                // Temporary Seed: Add EPJE Trip if missing (User Request)
+                const epjeId = 'epje-cascavel-2026';
+                const { data: existing } = await supabase.from('agenda_events').select('id').eq('id', epjeId).single();
+
+                if (!existing) {
+                    console.log('Seeding EPJE Trip...');
+                    const epjeEvent: AgendaEvent = {
+                        id: epjeId,
+                        title: 'Viagem EPJE Cascavel',
+                        description: 'Viagem com 10 amigos e colegas. Meta: R$ 3.000.',
+                        startDate: '2026-03-13',
+                        endDate: '2026-03-15',
+                        time: '08:00',
+                        type: 'EVENT',
+                        completed: false
+                    };
+
+                    // Insert into DB
+                    await supabase.from('agenda_events').upsert(mapAgendaEventToDb(epjeEvent));
+
+                    // Update Local State
+                    setEvents(prev => {
+                        const exists = prev.find(e => e.id === epjeId);
+                        if (exists) return prev;
+                        const newEvents = [...prev, epjeEvent];
+                        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
+                        return newEvents;
+                    });
+                }
             } catch (err) {
                 console.error('Error loading:', err);
                 const local = loadFromLocalStorageInner();

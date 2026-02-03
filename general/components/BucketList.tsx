@@ -27,6 +27,30 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
 
     // Load from Supabase on mount, fallback to localStorage
     useEffect(() => {
+        // Define helpers inside useEffect to avoid ReferenceError/Hoisting issues
+        const loadFromLocalStorageInner = (): Record<string, boolean> => {
+            try {
+                const saved = localStorage.getItem('bucket_list_state');
+                if (saved) {
+                    return JSON.parse(saved);
+                }
+            } catch (err) {
+                console.error('Error parsing localStorage:', err);
+            }
+            return {};
+        };
+
+        const syncToSupabaseInner = async (state: Record<string, boolean>) => {
+            for (const [id, completed] of Object.entries(state)) {
+                await supabase.from('bucket_list_items').upsert({
+                    id,
+                    completed,
+                    completed_at: completed ? new Date().toISOString() : null
+                }, { onConflict: 'id' });
+            }
+            setIsSynced(true);
+        };
+
         const loadData = async () => {
             try {
                 const { data, error } = await supabase
@@ -35,7 +59,8 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
 
                 if (error) {
                     console.warn('Supabase error, using localStorage:', error.message);
-                    loadFromLocalStorage();
+                    const local = loadFromLocalStorageInner();
+                    setCheckedState(local);
                     setIsSynced(false);
                 } else if (data && data.length > 0) {
                     const state: Record<string, boolean> = {};
@@ -45,41 +70,22 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
                     setIsSynced(true);
                 } else {
                     // No data in Supabase, try localStorage and sync up
-                    const local = loadFromLocalStorage();
+                    const local = loadFromLocalStorageInner();
+                    setCheckedState(local);
                     if (Object.keys(local).length > 0) {
-                        await syncToSupabase(local);
+                        await syncToSupabaseInner(local);
                     }
                     setIsSynced(true);
                 }
             } catch (err) {
                 console.error('Error loading:', err);
-                loadFromLocalStorage();
+                const local = loadFromLocalStorageInner();
+                setCheckedState(local);
                 setIsSynced(false);
             }
         };
         loadData();
     }, []);
-
-    const loadFromLocalStorage = (): Record<string, boolean> => {
-        const saved = localStorage.getItem('bucket_list_state');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            setCheckedState(parsed);
-            return parsed;
-        }
-        return {};
-    };
-
-    const syncToSupabase = async (state: Record<string, boolean>) => {
-        for (const [id, completed] of Object.entries(state)) {
-            await supabase.from('bucket_list_items').upsert({
-                id,
-                completed,
-                completed_at: completed ? new Date().toISOString() : null
-            }, { onConflict: 'id' });
-        }
-        setIsSynced(true);
-    };
 
     const toggleItem = async (id: string) => {
         const newCompleted = !checkedState[id];

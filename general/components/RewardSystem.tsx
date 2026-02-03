@@ -7,7 +7,8 @@ interface Reward {
     codename: string;
     title: string;
     cost: number;
-    unlockThreshold: number; // percentage (0-100)
+    unlockThreshold?: number; // percentage (0-100)
+    unlockAmount?: number; // absolute value
     icon: React.ReactNode;
 }
 
@@ -39,18 +40,23 @@ export const RewardSystem: React.FC<RewardSystemProps> = ({
             icon: <Mountain className="w-5 h-5" />
         },
         {
-            id: 'expedition',
+            id: 'epje-cascavel',
             level: 2,
-            codename: 'EXPEDIÇÃO VENTO SUL',
-            title: 'Trilha Guiada',
-            cost: 200,
-            unlockThreshold: 100,
+            codename: 'OPERAÇÃO EPJE',
+            title: 'Viagem Cascavel (10 amigos)',
+            cost: 300,
+            unlockAmount: 3000,
             icon: <Compass className="w-5 h-5" />
         }
     ];
 
-    const calculateAmountToUnlock = (threshold: number) => {
-        const requiredAmount = (threshold / 100) * metaMensalCarro;
+    const calculateAmountToUnlock = (reward: Reward) => {
+        let requiredAmount = 0;
+        if (reward.unlockAmount !== undefined) {
+            requiredAmount = reward.unlockAmount;
+        } else if (reward.unlockThreshold !== undefined) {
+            requiredAmount = (reward.unlockThreshold / 100) * metaMensalCarro;
+        }
         return Math.max(0, requiredAmount - valorGuardadoAtual);
     };
 
@@ -94,8 +100,11 @@ export const RewardSystem: React.FC<RewardSystemProps> = ({
             {/* Rewards List */}
             <div className="space-y-3">
                 {rewards.map((reward) => {
-                    const isUnlocked = progressPercent >= reward.unlockThreshold;
-                    const amountToUnlock = calculateAmountToUnlock(reward.unlockThreshold);
+                    const isUnlocked = reward.unlockAmount
+                        ? valorGuardadoAtual >= reward.unlockAmount
+                        : progressPercent >= (reward.unlockThreshold || 100);
+
+                    const amountToUnlock = calculateAmountToUnlock(reward);
 
                     return (
                         <div

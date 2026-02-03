@@ -98,6 +98,32 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
 
     // Load from Supabase on mount
     useEffect(() => {
+        // Define helpers inside useEffect to avoid ReferenceError
+        const loadFromLocalStorageInner = (): string[] => {
+            const saved = localStorage.getItem('vehicle_fund_checkins');
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.error('Error parsing localStorage', e);
+                }
+            }
+            return [];
+        };
+
+        const syncToSupabaseInner = async (monthIds: string[]) => {
+            for (const monthId of monthIds) {
+                const month = CHECKIN_MONTHS.find(m => m.id === monthId);
+                if (month) {
+                    await supabase.from('vehicle_fund_checkins').upsert({
+                        month_index: month.index,
+                        paid: true
+                    }, { onConflict: 'month_index' });
+                }
+            }
+            setIsSynced(true);
+        };
+
         const loadData = async () => {
             try {
                 const { data, error } = await supabase
@@ -106,7 +132,8 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
 
                 if (error) {
                     console.warn('Supabase error:', error.message);
-                    loadFromLocalStorage();
+                    const local = loadFromLocalStorageInner();
+                    setPaidMonths(local);
                     setIsSynced(false);
                 } else if (data && data.length > 0) {
                     const monthIds = data.map(row => {
@@ -117,43 +144,22 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
                     localStorage.setItem('vehicle_fund_checkins', JSON.stringify(monthIds));
                     setIsSynced(true);
                 } else {
-                    const local = loadFromLocalStorage();
+                    const local = loadFromLocalStorageInner();
+                    setPaidMonths(local);
                     if (local.length > 0) {
-                        await syncToSupabase(local);
+                        await syncToSupabaseInner(local);
                     }
                     setIsSynced(true);
                 }
             } catch (err) {
                 console.error('Error:', err);
-                loadFromLocalStorage();
+                const local = loadFromLocalStorageInner();
+                setPaidMonths(local);
                 setIsSynced(false);
             }
         };
         loadData();
     }, []);
-
-    const loadFromLocalStorage = (): string[] => {
-        const saved = localStorage.getItem('vehicle_fund_checkins');
-        if (saved) {
-            const parsed = JSON.parse(saved);
-            setPaidMonths(parsed);
-            return parsed;
-        }
-        return [];
-    };
-
-    const syncToSupabase = async (monthIds: string[]) => {
-        for (const monthId of monthIds) {
-            const month = CHECKIN_MONTHS.find(m => m.id === monthId);
-            if (month) {
-                await supabase.from('vehicle_fund_checkins').upsert({
-                    month_index: month.index,
-                    paid: true
-                }, { onConflict: 'month_index' });
-            }
-        }
-        setIsSynced(true);
-    };
 
     const toggleMonth = async (monthId: string) => {
         const isPaid = paidMonths.includes(monthId);
