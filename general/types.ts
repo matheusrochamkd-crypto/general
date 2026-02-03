@@ -21,6 +21,7 @@ export interface EventItem {
   title: string;
   description?: string;
   date: string; // ISO string or 'DD/MM/YYYY'
+  endDate?: string; // End date/time for events with duration
   type: 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT';
   completed: boolean;
 }
