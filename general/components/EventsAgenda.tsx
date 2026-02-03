@@ -57,6 +57,18 @@ const mapAgendaEventToDb = (event: AgendaEvent) => ({
     completed: event.completed,
 });
 
+const getDaysBetween = (start: string, end: string): string[] => {
+    const days: string[] = [];
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    const current = new Date(startDate);
+    while (current <= endDate) {
+        days.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`);
+        current.setDate(current.getDate() + 1);
+    }
+    return days;
+};
+
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     console.log('EventsAgenda mounting...');
 
@@ -405,17 +417,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         };
     }, [events, currentDate]);
 
-    const getDaysBetween = (start: string, end: string): string[] => {
-        const days: string[] = [];
-        const startDate = new Date(start);
-        const endDate = new Date(end);
-        const current = new Date(startDate);
-        while (current <= endDate) {
-            days.push(`${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`);
-            current.setDate(current.getDate() + 1);
-        }
-        return days;
-    };
+
 
     return (
         <div
