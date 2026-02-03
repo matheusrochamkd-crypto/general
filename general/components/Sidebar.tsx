@@ -11,9 +11,10 @@ interface SidebarProps {
   onOpenRevenueTimeline?: () => void;
   onOpenCommandCenter?: () => void;
   onOpenBucketList?: () => void;
+  onOpenEventsAgenda?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSelectMonth, onOpenRewardVault, onOpenVehicleRoadmap, onOpenRevenueTimeline, onOpenCommandCenter, onOpenBucketList }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSelectMonth, onOpenRewardVault, onOpenVehicleRoadmap, onOpenRevenueTimeline, onOpenCommandCenter, onOpenBucketList, onOpenEventsAgenda }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -175,6 +176,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
           >
             <Scroll className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Lista de Vida</span>
+          </button>
+        )}
+
+        {/* Agenda Anual Button */}
+        {onOpenEventsAgenda && (
+          <button
+            onClick={onOpenEventsAgenda}
+            className="w-full py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center gap-2 text-orange-400 hover:bg-orange-500/20 transition-all"
+          >
+            <Calendar className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Agenda 2026</span>
           </button>
         )}
       </div>

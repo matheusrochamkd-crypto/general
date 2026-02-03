@@ -15,3 +15,12 @@ export interface MonthData {
 }
 
 export type CategoryType = 'TARGET' | 'INCOME' | 'FIXED_COST' | 'VARIABLE_COST';
+
+export interface EventItem {
+  id: string;
+  title: string;
+  description?: string;
+  date: string; // ISO string or 'DD/MM/YYYY'
+  type: 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT';
+  completed: boolean;
+}
