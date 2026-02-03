@@ -34,6 +34,29 @@ const TYPE_LABELS: Record<string, string> = {
     EVENT: 'Evento',
 };
 
+// Pure mapping functions (outside component to avoid initialization issues)
+const mapFromDb = (row: any): AgendaEvent => ({
+    id: row.id,
+    title: row.title,
+    description: row.description || '',
+    startDate: row.start_date,
+    endDate: row.end_date || row.start_date,
+    time: row.time || '',
+    type: row.type || 'EVENT',
+    completed: row.completed || false,
+});
+
+const mapToDb = (event: AgendaEvent) => ({
+    id: event.id,
+    title: event.title,
+    description: event.description,
+    start_date: event.startDate,
+    end_date: event.endDate,
+    time: event.time,
+    type: event.type,
+    completed: event.completed,
+});
+
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [events, setEvents] = useState<AgendaEvent[]>([]);
     const [isSynced, setIsSynced] = useState<boolean | null>(null); // null = loading, true = synced, false = offline
@@ -58,6 +81,66 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
     // Load events from Supabase on mount, fallback to localStorage
     useEffect(() => {
+        // Helper functions defined INSIDE useEffect to ensure proper order
+        const loadFromLocalStorageInner = (): AgendaEvent[] => {
+            try {
+                const savedNew = localStorage.getItem('agenda_events_2026_v2');
+                if (savedNew) {
+                    const parsed = JSON.parse(savedNew);
+                    if (!Array.isArray(parsed)) {
+                        localStorage.removeItem('agenda_events_2026_v2');
+                        return [];
+                    }
+                    const validEvents = parsed.filter((e: any) => e && e.id && e.title).map((e: any) => ({
+                        id: String(e.id),
+                        title: String(e.title || ''),
+                        description: String(e.description || ''),
+                        startDate: String(e.startDate || e.date || ''),
+                        endDate: String(e.endDate || e.startDate || e.date || ''),
+                        time: String(e.time || ''),
+                        type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
+                        completed: Boolean(e.completed),
+                    }));
+                    return validEvents;
+                }
+                const savedOld = localStorage.getItem('agenda_events_2026');
+                if (savedOld) {
+                    const oldEvents = JSON.parse(savedOld);
+                    if (!Array.isArray(oldEvents)) return [];
+                    const migratedEvents = oldEvents.filter((e: any) => e && e.id).map((e: any) => ({
+                        id: String(e.id),
+                        title: String(e.title || ''),
+                        description: String(e.description || ''),
+                        startDate: String(e.date || e.startDate || ''),
+                        endDate: String(e.date || e.endDate || e.startDate || ''),
+                        time: String(e.time || ''),
+                        type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
+                        completed: Boolean(e.completed),
+                    }));
+                    localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
+                    return migratedEvents;
+                }
+            } catch (err) {
+                console.error('Error loading localStorage:', err);
+                localStorage.removeItem('agenda_events_2026_v2');
+                localStorage.removeItem('agenda_events_2026');
+            }
+            return [];
+        };
+
+        const syncLocalToSupabaseInner = async (localEvents: AgendaEvent[]) => {
+            try {
+                for (const event of localEvents) {
+                    await supabase.from('agenda_events').upsert(mapToDb(event), { onConflict: 'id' });
+                }
+                setIsSynced(true);
+                setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+            } catch (err) {
+                console.error('Sync error:', err);
+                setIsSynced(false);
+            }
+        };
+
         const loadEvents = async () => {
             try {
                 const { data, error } = await supabase
@@ -66,8 +149,9 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     .order('start_date', { ascending: true });
 
                 if (error) {
-                    console.warn('Supabase error, using localStorage:', error.message);
-                    loadFromLocalStorage();
+                    console.warn('Supabase error:', error.message);
+                    const local = loadFromLocalStorageInner();
+                    setEvents(local);
                     setIsSynced(false);
                 } else if (data && data.length > 0) {
                     const mapped = data.map(mapFromDb);
@@ -76,16 +160,17 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     setIsSynced(true);
                     setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
                 } else {
-                    // No data in Supabase, try localStorage and sync up
-                    const local = loadFromLocalStorage();
+                    const local = loadFromLocalStorageInner();
+                    setEvents(local);
                     if (local.length > 0) {
-                        await syncLocalToSupabase(local);
+                        await syncLocalToSupabaseInner(local);
                     }
                     setIsSynced(true);
                 }
             } catch (err) {
-                console.error('Error loading events:', err);
-                loadFromLocalStorage();
+                console.error('Error loading:', err);
+                const local = loadFromLocalStorageInner();
+                setEvents(local);
                 setIsSynced(false);
             }
         };
@@ -93,93 +178,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         loadEvents();
     }, []);
 
-    const loadFromLocalStorage = (): AgendaEvent[] => {
-        try {
-            // Try new format first
-            const savedNew = localStorage.getItem('agenda_events_2026_v2');
-            if (savedNew) {
-                const parsed = JSON.parse(savedNew);
-                // Validate that it's an array
-                if (!Array.isArray(parsed)) {
-                    console.warn('Invalid data format, clearing localStorage');
-                    localStorage.removeItem('agenda_events_2026_v2');
-                    return [];
-                }
-                // Validate and fix each event
-                const validEvents = parsed.filter((e: any) => e && e.id && e.title).map((e: any) => ({
-                    id: String(e.id),
-                    title: String(e.title || ''),
-                    description: String(e.description || ''),
-                    startDate: String(e.startDate || e.date || ''),
-                    endDate: String(e.endDate || e.startDate || e.date || ''),
-                    time: String(e.time || ''),
-                    type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
-                    completed: Boolean(e.completed),
-                }));
-                setEvents(validEvents);
-                return validEvents;
-            }
-            // Migrate from old format
-            const savedOld = localStorage.getItem('agenda_events_2026');
-            if (savedOld) {
-                const oldEvents = JSON.parse(savedOld);
-                if (!Array.isArray(oldEvents)) return [];
-                const migratedEvents = oldEvents.filter((e: any) => e && e.id).map((e: any) => ({
-                    id: String(e.id),
-                    title: String(e.title || ''),
-                    description: String(e.description || ''),
-                    startDate: String(e.date || e.startDate || ''),
-                    endDate: String(e.date || e.endDate || e.startDate || ''),
-                    time: String(e.time || ''),
-                    type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
-                    completed: Boolean(e.completed),
-                }));
-                localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
-                setEvents(migratedEvents);
-                return migratedEvents;
-            }
-        } catch (err) {
-            console.error('Error loading from localStorage, clearing corrupted data:', err);
-            localStorage.removeItem('agenda_events_2026_v2');
-            localStorage.removeItem('agenda_events_2026');
-        }
-        return [];
-    };
-
-    const mapFromDb = (row: any): AgendaEvent => ({
-        id: row.id,
-        title: row.title,
-        description: row.description || '',
-        startDate: row.start_date,
-        endDate: row.end_date || row.start_date,
-        time: row.time || '',
-        type: row.type || 'EVENT',
-        completed: row.completed || false,
-    });
-
-    const mapToDb = (event: AgendaEvent) => ({
-        id: event.id,
-        title: event.title,
-        description: event.description,
-        start_date: event.startDate,
-        end_date: event.endDate,
-        time: event.time,
-        type: event.type,
-        completed: event.completed,
-    });
-
-    const syncLocalToSupabase = async (localEvents: AgendaEvent[]) => {
-        try {
-            for (const event of localEvents) {
-                await supabase.from('agenda_events').upsert(mapToDb(event), { onConflict: 'id' });
-            }
-            setIsSynced(true);
-            setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-        } catch (err) {
-            console.error('Sync error:', err);
-            setIsSynced(false);
-        }
-    };
+    // mapFromDb and mapToDb are defined outside the component
 
     // Save to both localStorage and Supabase
     const saveEvent = async (event: AgendaEvent, isNew: boolean = true) => {
