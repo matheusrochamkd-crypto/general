@@ -567,7 +567,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                             <h1 className="text-3xl font-bold text-white uppercase tracking-wider">Agenda 2026</h1>
                             <div className="flex items-center gap-3 mt-1">
                                 <p className="text-sm text-text-muted">Arraste nos dias para eventos de múltiplos dias</p>
-                                <div className={`flex items - center gap - 1.5 px - 2 py - 0.5 rounded - full text - xs ${isSynced === null ? 'bg-gray-500/20 text-gray-400' :
+                                <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs ${isSynced === null ? 'bg-gray-500/20 text-gray-400' :
                                     isSynced ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
                                     } `}>
                                     {isSynced === null ? (
@@ -640,10 +640,10 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                     key={idx}
                                     onMouseDown={() => handleMouseDown(day.dateStr)}
                                     onMouseEnter={() => handleMouseEnter(day.dateStr)}
-                                    className={`min - h - [100px] p - 2 border - b border - r border - white / 5 cursor - pointer transition - colors ${!day.isCurrentMonth ? 'opacity-30' : ''
+                                    className={`min-h-[100px] p-2 border-b border-r border-white/5 cursor-pointer transition-colors ${!day.isCurrentMonth ? 'opacity-30' : ''
                                         } ${inSelection ? 'bg-orange-500/20 border-orange-500/40' : 'hover:bg-white/[0.02]'} `}
                                 >
-                                    <div className={`w - 7 h - 7 flex items - center justify - center text - sm mb - 1 rounded - full ${isToday(day.dateStr) ? 'bg-orange-500 text-white font-bold' : 'text-text-secondary'
+                                    <div className={`w-7 h-7 flex items-center justify-center text-sm mb-1 rounded-full ${isToday(day.dateStr) ? 'bg-orange-500 text-white font-bold' : 'text-text-secondary'
                                         } `}>
                                         {day.day}
                                     </div>
@@ -661,10 +661,10 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                                         e.stopPropagation();
                                                         handleEditEvent(event);
                                                     }}
-                                                    className={`text - [11px] px - 2 py - 0.5 truncate ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} ${isMultiDay
+                                                    className={`text-[11px] px-2 py-0.5 truncate ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} ${isMultiDay
                                                         ? `${isStart ? 'rounded-l' : 'rounded-none -ml-2'} ${isEnd ? 'rounded-r' : 'rounded-none -mr-2'}`
                                                         : 'rounded'
-                                                        } flex justify - between items - center gap - 2 cursor - pointer hover: brightness - 110 transition - all border border - transparent hover: border - white / 20`}
+                                                        } flex justify-between items-center gap-2 cursor-pointer hover:brightness-110 transition-all border border-transparent hover:border-white/20`}
                                                 >
                                                     <span className="truncate flex-1 font-semibold tracking-tight">{(isStart || !isMultiDay) && event.title}</span>
                                                     {(isStart || !isMultiDay) && event.time && (
@@ -706,14 +706,14 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                             .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
                             .slice(0, 5)
                             .map(event => (
-                                <div key={event.id} className={`flex items - center gap - 4 p - 4 bg - [#0A0A0A] border border - white / 10 rounded - lg group ${event.completed ? 'opacity-50' : ''} `}>
-                                    <button onClick={() => toggleComplete(event.id)} className={`transition - colors ${event.completed ? 'text-green-500' : 'text-text-muted hover:text-white'} `}>
+                                <div key={event.id} className={`flex items-center gap-4 p-4 bg-[#0A0A0A] border border-white/10 rounded-lg group ${event.completed ? 'opacity-50' : ''} `}>
+                                    <button onClick={() => toggleComplete(event.id)} className={`transition-colors ${event.completed ? 'text-green-500' : 'text-text-muted hover:text-white'} `}>
                                         {event.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
                                     </button>
 
                                     <div className="flex-1">
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className={`text - xs px - 2 py - 0.5 rounded - full ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} `}>
+                                            <span className={`text-xs px-2 py-0.5 rounded-full ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} `}>
                                                 {TYPE_LABELS[event.type]}
                                             </span>
                                             <span className="text-xs text-text-muted">
@@ -722,7 +722,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                                 {event.time && ` às ${event.time} `}
                                             </span>
                                         </div>
-                                        <h4 className={`font - medium mt - 1 ${event.completed ? 'line-through text-text-muted' : 'text-white'} `}>
+                                        <h4 className={`font-medium mt-1 ${event.completed ? 'line-through text-text-muted' : 'text-white'} `}>
                                             {event.title}
                                         </h4>
                                         {event.description && <p className="text-sm text-text-muted mt-0.5">{event.description}</p>}
