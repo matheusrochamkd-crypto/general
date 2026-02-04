@@ -43,67 +43,115 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
 
     const processQuery = (query: string) => {
         const lowerQuery = query.toLowerCase();
-        let response = "Desculpe, não entendi. Tente perguntar sobre um nome específico ou totais.";
 
-        // 1. Total Capital
-        if (lowerQuery.includes('total') || lowerQuery.includes('soma')) {
-            const total = data.reduce((acc, curr) => {
-                const val = parseFloat(curr.capital_value.replace('.', '').replace(',', '.')) || 0;
-                return acc + val;
-            }, 0);
-            response = `O valor total do Capital Social carregado é de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}.`;
+        // Helper: Parse currency
+        const parseValue = (val: string) => parseFloat(val.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+        const formatValue = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+        // Analysis: Totals and Averages
+        const totalCapital = data.reduce((acc, curr) => acc + parseValue(curr.capital_value), 0);
+        const avgCapital = data.length > 0 ? totalCapital / data.length : 0;
+
+        // Analysis: Metadata Frequencies (e.g. Cities, Professions)
+        const metadataCounts: Record<string, Record<string, number>> = {};
+        data.forEach(item => {
+            if (item.metadata) {
+                Object.entries(item.metadata).forEach(([key, val]) => {
+                    const k = key.toLowerCase();
+                    const v = String(val).trim();
+                    if (!metadataCounts[k]) metadataCounts[k] = {};
+                    if (v) metadataCounts[k][v] = (metadataCounts[k][v] || 0) + 1;
+                });
+            }
+        });
+
+        // Handler 1: General Summary / "Analyze"
+        if (
+            lowerQuery.includes('fala') || lowerQuery.includes('resumo') ||
+            lowerQuery.includes('analise') || lowerQuery.includes('sobre') ||
+            lowerQuery.includes('dados') || lowerQuery.includes('pessoas') ||
+            lowerQuery.includes('geral')
+        ) {
+            let summary = `📊 **Análise Geral**\n\n`;
+            summary += `• **Total de Associados**: ${data.length}\n`;
+            summary += `• **Capital Total**: ${formatValue(totalCapital)}\n`;
+            summary += `• **Média por Pessoa**: ${formatValue(avgCapital)}\n`;
+
+            // Identify top metadata fields
+            const interestingKeys = Object.keys(metadataCounts).filter(k => Object.keys(metadataCounts[k]).length > 1 && Object.keys(metadataCounts[k]).length < data.length); // Fields with some variation but not unique IDs
+
+            if (interestingKeys.length > 0) {
+                summary += `\n🔍 **Distribuição de Dados Extras**:\n`;
+                interestingKeys.slice(0, 3).forEach(key => { // Show top 3 interesting fields
+                    const counts = metadataCounts[key];
+                    const topValues = Object.entries(counts)
+                        .sort((a, b) => b[1] - a[1]) // Sort by frequency
+                        .slice(0, 3); // Top 3 values
+
+                    const formatKey = key.charAt(0).toUpperCase() + key.slice(1);
+                    const valuesStr = topValues.map(([val, count]) => `${val} (${count})`).join(', ');
+                    summary += `- **${formatKey}**: ${valuesStr}...\n`;
+                });
+            }
+
+            return summary;
         }
-        // 2. Highest Value
-        else if (lowerQuery.includes('maior') || lowerQuery.includes('maximo') || lowerQuery.includes('rico')) {
-            const sorted = [...data].sort((a, b) => {
-                const valA = parseFloat(a.capital_value.replace('.', '').replace(',', '.')) || 0;
-                const valB = parseFloat(b.capital_value.replace('.', '').replace(',', '.')) || 0;
-                return valB - valA;
-            });
+
+        // Handler 2: Financial Stats (Specific)
+        if (lowerQuery.includes('total') || lowerQuery.includes('soma') || lowerQuery.includes('valor')) {
+            return `💰 O valor total acumulado é de **${formatValue(totalCapital)}**, com uma média de **${formatValue(avgCapital)}** por associado.`;
+        }
+
+        // Handler 3: Extremes (Rich/Poor)
+        if (lowerQuery.includes('maior') || lowerQuery.includes('rico') || lowerQuery.includes('melhor')) {
+            const sorted = [...data].sort((a, b) => parseValue(b.capital_value) - parseValue(a.capital_value));
             const top = sorted[0];
-            if (top) {
-                response = `O associado com maior capital é **${top.associate_name}** com ${top.capital_value}. (Conta: ${top.account_number})`;
-            }
-        }
-        // 3. Search by Name
-        else {
-            const results = data.filter(item =>
-                item.associate_name.toLowerCase().includes(lowerQuery) ||
-                item.account_number.includes(lowerQuery)
-            );
-
-            if (results.length === 1) {
-                const item = results[0];
-                let details = `Encontrei: **${item.associate_name}**\nConta: ${item.account_number}\nCapital: ${item.capital_value}`;
-
-                // Add metadata details if any
-                if (item.metadata) {
-                    const metaStr = Object.entries(item.metadata)
-                        .map(([key, val]) => `- ${key}: ${val}`)
-                        .join('\n');
-                    if (metaStr) details += `\n\nOutros dados:\n${metaStr}`;
-                }
-                response = details;
-            } else if (results.length > 1 && results.length < 10) {
-                const names = results.map(r => r.associate_name).join(', ');
-                response = `Encontrei ${results.length} associados com esse termo: ${names}. Seja mais específico para ver detalhes.`;
-            } else if (results.length >= 10) {
-                response = `Encontrei muitos associados (${results.length}) com esse termo. Por favor, especifique melhor o nome.`;
-            } else {
-                // Try searching in metadata
-                const metaResults = data.filter(item =>
-                    item.metadata && Object.values(item.metadata).some(val => String(val).toLowerCase().includes(lowerQuery))
-                );
-
-                if (metaResults.length > 0) {
-                    response = `Encontrei ${metaResults.length} registros com essa informação nos dados extras (metadados). O primeiro é: ${metaResults[0].associate_name}.`;
-                } else {
-                    response = `Não encontrei nenhum associado combatendo com "${query}".`;
-                }
-            }
+            return `🏆 O maior capital é de **${top.associate_name}** com **${top.capital_value}** (Conta: ${top.account_number}).`;
         }
 
-        return response;
+        if (lowerQuery.includes('menor') || lowerQuery.includes('pobre')) {
+            const sorted = [...data].sort((a, b) => parseValue(a.capital_value) - parseValue(b.capital_value));
+            const bottom = sorted[0];
+            return `O menor capital registrado é de **${bottom.associate_name}** com **${bottom.capital_value}**.`;
+        }
+
+        // Handler 4: Search (Specific Person)
+        const results = data.filter(item =>
+            item.associate_name.toLowerCase().includes(lowerQuery) ||
+            item.account_number.includes(lowerQuery)
+        );
+
+        if (results.length === 1) {
+            const item = results[0];
+            let details = `👤 **${item.associate_name}**\n💳 Conta: ${item.account_number}\n💰 Capital: ${item.capital_value}`;
+            if (item.metadata) {
+                const metaStr = Object.entries(item.metadata)
+                    .map(([key, val]) => `• ${key}: ${val}`)
+                    .join('\n');
+                if (metaStr) details += `\n\n📝 **Detalhes**:\n${metaStr}`;
+            }
+            return details;
+        }
+
+        if (results.length > 1 && results.length <= 5) {
+            return `Encontrei alguns nomes parecidos:\n` + results.map(r => `- ${r.associate_name} (${r.capital_value})`).join('\n');
+        }
+
+        if (results.length > 5) {
+            return `Encontrei ${results.length} pessoas com "${query}". Tente ser mais específico.`;
+        }
+
+        // Handler 5: Metadata Keyword Search (Search in professions, cities, etc)
+        const metaMatches = data.filter(item =>
+            item.metadata && Object.values(item.metadata).some(val => String(val).toLowerCase().includes(lowerQuery))
+        );
+
+        if (metaMatches.length > 0) {
+            const sample = metaMatches.slice(0, 3).map(m => m.associate_name).join(', ');
+            return `Encontrei ${metaMatches.length} registros que mencionam "${query}" nos detalhes (ex: ${sample}...).`;
+        }
+
+        return "🤔 Não entendi bem. Tente perguntar 'resumo geral', 'maior valor', 'total' ou o nome de alguém.";
     };
 
     const handleSend = () => {
@@ -120,7 +168,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         setInputValue('');
         setIsTyping(true);
 
-        // Simulate AI delay
+        // Quick realistic delay
         setTimeout(() => {
             const responseText = processQuery(userMsg.text);
             const aiMsg: Message = {
@@ -131,7 +179,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
             };
             setMessages(prev => [...prev, aiMsg]);
             setIsTyping(false);
-        }, 800);
+        }, 600);
     };
 
     return (
