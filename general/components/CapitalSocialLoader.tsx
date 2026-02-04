@@ -59,7 +59,9 @@ export const CapitalSocialLoader: React.FC = () => {
             const dynamicKeys = new Set<string>();
             formatted.forEach(item => {
                 if (item.metadata) {
-                    Object.keys(item.metadata).forEach(k => dynamicKeys.add(k));
+                    Object.keys(item.metadata).forEach(k => {
+                        if (!/^_\d+$/.test(k)) dynamicKeys.add(k);
+                    });
                 }
             });
             if (dynamicKeys.size > 0) {
@@ -93,7 +95,9 @@ export const CapitalSocialLoader: React.FC = () => {
             complete: (results) => {
                 try {
                     const foundHeaders = results.meta.fields || [];
-                    const extraHeaders = foundHeaders.filter(h => !['Nome', 'Conta', 'Valor'].includes(h));
+                    const extraHeaders = foundHeaders.filter(h =>
+                        !['Nome', 'Conta', 'Valor'].includes(h) && !/^_\d+$/.test(h)
+                    );
                     setHeaders(['Nome', 'Conta', 'Valor', ...extraHeaders]);
 
                     const normalizedData: CapitalSocialRecord[] = results.data.map((row: any) => {
@@ -104,7 +108,8 @@ export const CapitalSocialLoader: React.FC = () => {
                         const metadata: Record<string, string> = {};
                         Object.keys(row).forEach(key => {
                             const lowerKey = key.toLowerCase();
-                            if (!['nome', 'associado', 'conta', 'valor', 'capital'].includes(lowerKey)) {
+                            // Filter out standard keys AND artifact keys like _1, _2...
+                            if (!['nome', 'associado', 'conta', 'valor', 'capital'].includes(lowerKey) && !/^_\d+$/.test(key)) {
                                 metadata[key] = row[key];
                             }
                         });
@@ -199,7 +204,7 @@ export const CapitalSocialLoader: React.FC = () => {
                     associate_name: editForm.associate_name,
                     account_number: editForm.account_number,
                     capital_value: val,
-                    // We typically don't edit metadata inline easily, but let's keep it safe
+                    metadata: editForm.metadata // Save the updated metadata
                 })
                 .eq('id', editForm.id);
 
@@ -396,7 +401,27 @@ export const CapitalSocialLoader: React.FC = () => {
                                                 {/* Metadata Columns */}
                                                 {headers.slice(3).map(h => (
                                                     <td key={h} className="p-4 text-xs text-gray-500">
-                                                        {row.metadata?.[h] || row[h] || '-'}
+                                                        {isEditing ? (
+                                                            <input
+                                                                className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-xs w-full"
+                                                                value={editForm?.metadata?.[h] || ''}
+                                                                onChange={e => {
+                                                                    const val = e.target.value;
+                                                                    setEditForm(prev => {
+                                                                        if (!prev) return null;
+                                                                        return {
+                                                                            ...prev,
+                                                                            metadata: {
+                                                                                ...prev.metadata,
+                                                                                [h]: val
+                                                                            }
+                                                                        };
+                                                                    });
+                                                                }}
+                                                            />
+                                                        ) : (
+                                                            row.metadata?.[h] || row[h] || '-'
+                                                        )}
                                                     </td>
                                                 ))}
                                             </tr>
