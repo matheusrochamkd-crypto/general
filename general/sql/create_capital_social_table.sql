@@ -4,6 +4,7 @@ CREATE TABLE IF NOT EXISTS capital_social (
     associate_name TEXT NOT NULL,
     account_number TEXT,
     capital_value NUMERIC,
+    metadata JSONB DEFAULT '{}'::jsonb, -- Store dynamic CSV columns here
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
