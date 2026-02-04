@@ -42,12 +42,12 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
     }, [messages]);
 
     const DEFAULT_KEY = "AIzaSyDbqi0s-DT04kUur9f3ALHDP7zIb6LboIo";
-    // Use v2 to force-reset any old invalid keys user might have stored
-    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key_v2') || DEFAULT_KEY);
+    // V3: FORCE RESET to ensure we use Gemini 2.5 and ditch the broken 2.0 config
+    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key_v3') || DEFAULT_KEY);
     const [showKeyInput, setShowKeyInput] = useState(false);
 
     const saveApiKey = (key: string) => {
-        localStorage.setItem('gemini_api_key_v2', key);
+        localStorage.setItem('gemini_api_key_v3', key);
         setApiKey(key);
         setShowKeyInput(false);
     };
@@ -76,6 +76,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                 }]
             };
 
+            // USING GEMINI 2.5 FLASH (Valid & Free)
             const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -87,6 +88,11 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
             if (!response.ok) {
                 const msg = resData.error?.message || response.statusText;
                 console.error("Gemini API Error:", msg);
+
+                // Smart fallback for quota issues
+                if (msg.includes('429') || msg.includes('Quota')) {
+                    throw new Error("Cota excedida (Google). Tentando modo offline...");
+                }
                 throw new Error(`Erro API (${response.status}): ${msg}`);
             }
 
@@ -97,7 +103,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
             console.error("Fetch Error:", error);
             // Fallback to internal logic with error notice
             const fallbackResponse = internalProcessQuery(userQuery);
-            return `⚠️ **Erro na IA Online**: ${error.message}\n\n🤖 **Resposta Automática (Offline)**:\n${fallbackResponse}`;
+            return `⚠️ **API Google Instável**: ${error.message}\n\n✅ **Alternativa Offline (Ativada)**:\n${fallbackResponse}`;
         }
     };
 
@@ -161,17 +167,19 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
             <div className="p-4 border-b border-white/10 flex flex-col gap-2 bg-gray-800/50">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="p-2 bg-pink-500/20 rounded-lg">
-                            <Sparkles className="w-5 h-5 text-pink-400" />
+                        <div className="p-2 bg-green-500/20 rounded-lg">
+                            <Sparkles className="w-5 h-5 text-green-400" />
                         </div>
                         <div>
-                            <h3 className="text-sm font-semibold text-white">Assistente Inteligente</h3>
-                            <p className="text-xs text-green-400">{apiKey ? '● Conectado (Gemini)' : '○ Modo Básico'}</p>
+                            <h3 className="text-sm font-semibold text-white">IA Conectada</h3>
+                            <p className="text-xs text-green-400">
+                                {apiKey ? '● Modelo 2.5 (Ativo)' : '○ Offline'}
+                            </p>
                         </div>
                     </div>
                     <div className="flex gap-2">
                         <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs text-gray-400 hover:text-white underline">
-                            {apiKey ? 'Trocar Key' : 'Configurar IA'}
+                            {apiKey ? 'Config' : 'Ativar IA'}
                         </button>
                         <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors">
                             <X className="w-5 h-5 text-gray-400" />
@@ -181,19 +189,17 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
 
                 {/* API Key Input */}
                 {showKeyInput && (
-                    <div className="bg-gray-900 p-2 rounded border border-pink-500/30 text-xs">
-                        <p className="mb-2 text-gray-300">Cole sua chave da Google Gemini API:</p>
+                    <div className="bg-gray-900 p-2 rounded border border-green-500/30 text-xs">
+                        <p className="mb-2 text-gray-300">Chave Google Gemini:</p>
                         <div className="flex gap-2">
                             <input
                                 type="password"
                                 className="bg-black/50 border border-gray-700 rounded p-1 flex-1 text-white"
-                                placeholder="AIzaSy..."
+                                placeholder={DEFAULT_KEY.substring(0, 8) + "...".substring(0, 8)}
                                 onBlur={(e) => saveApiKey(e.target.value)}
                             />
                         </div>
-                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="block mt-1 text-pink-400 hover:underline">
-                            Obter chave gratuita &rarr;
-                        </a>
+                        <p className="mt-1 text-gray-500 text-[10px]">Usando modelo v2.5-flash (Grátis)</p>
                     </div>
                 )}
             </div>
