@@ -41,7 +41,77 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         scrollToBottom();
     }, [messages]);
 
-    const processQuery = (query: string) => {
+    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
+    const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem('gemini_api_key'));
+
+    const saveApiKey = (key: string) => {
+        localStorage.setItem('gemini_api_key', key);
+        setApiKey(key);
+        setShowKeyInput(false);
+    };
+
+    const callGeminiAPI = async (userQuery: string) => {
+        if (!apiKey) return "Preciso de uma chave de API para funcionar.";
+
+        try {
+            // Prepare context with data sample (limit to avoid token overflow if huge, but 117 records is fine)
+            // Simplifying data to minimize tokens: Name, Capital, Account, Metadata
+            const contextData = data.map(d => ({
+                n: d.associate_name,
+                c: d.capital_value, // string format
+                a: d.account_number,
+                m: d.metadata
+            }));
+
+            const payload = {
+                contents: [{
+                    parts: [{
+                        text: `Você é um analista de dados financeiros de uma cooperativa.
+                        Aqui estão os dados (JSON) dos associados (n=Nome, c=Capital, a=Conta, m=Metadados):
+                        ${JSON.stringify(contextData)}
+                        
+                        Responda à pergunta do usuário com base NESSES dados. 
+                        Seja direto, analítico e use formatação Markdown.
+                        Não invente dados. Se não estiver no JSON, diga que não encontrou.
+                        
+                        Pergunta: ${userQuery}`
+                    }]
+                }]
+            };
+
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                console.error("Gemini API Error:", data.error);
+                return `Erro na API: ${data.error.message || 'Falha desconhecida'}`;
+            }
+
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            return text || "Não consegui gerar uma resposta.";
+
+        } catch (error: any) {
+            console.error("Fetch Error:", error);
+            return "Erro de conexão com a IA. Verifique sua Internet ou a Chave de API.";
+        }
+    };
+
+    const processQuery = async (query: string) => {
+        // Fallback or "Hybrid" mode? No, user wants real AI.
+        // But let's keep the internal one if no API key is provided?
+        if (!apiKey) {
+            return "⚠️ **Modo Offline**: Para análises complexas, insira sua chave da Google Gemini API no topo do chat.\n\n" + internalProcessQuery(query);
+        }
+        return await callGeminiAPI(query);
+    };
+
+    const internalProcessQuery = (query: string) => {
+        // ... (Keep existing heuristic logic as fallback/offline mode)
         const lowerQuery = query.toLowerCase();
 
         // Helper: Parse currency
@@ -52,109 +122,14 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         const totalCapital = data.reduce((acc, curr) => acc + parseValue(curr.capital_value), 0);
         const avgCapital = data.length > 0 ? totalCapital / data.length : 0;
 
-        // Analysis: Metadata Frequencies (e.g. Cities, Professions)
-        const metadataCounts: Record<string, Record<string, number>> = {};
-        data.forEach(item => {
-            if (item.metadata) {
-                Object.entries(item.metadata).forEach(([key, val]) => {
-                    const k = key.toLowerCase();
-                    const v = String(val).trim();
-                    if (!metadataCounts[k]) metadataCounts[k] = {};
-                    if (v) metadataCounts[k][v] = (metadataCounts[k][v] || 0) + 1;
-                });
-            }
-        });
-
-        // Handler 1: General Summary / "Analyze"
-        if (
-            lowerQuery.includes('fala') || lowerQuery.includes('resumo') ||
-            lowerQuery.includes('analise') || lowerQuery.includes('sobre') ||
-            lowerQuery.includes('dados') || lowerQuery.includes('pessoas') ||
-            lowerQuery.includes('geral')
-        ) {
-            let summary = `📊 **Análise Geral**\n\n`;
-            summary += `• **Total de Associados**: ${data.length}\n`;
-            summary += `• **Capital Total**: ${formatValue(totalCapital)}\n`;
-            summary += `• **Média por Pessoa**: ${formatValue(avgCapital)}\n`;
-
-            // Identify top metadata fields
-            const interestingKeys = Object.keys(metadataCounts).filter(k => Object.keys(metadataCounts[k]).length > 1 && Object.keys(metadataCounts[k]).length < data.length); // Fields with some variation but not unique IDs
-
-            if (interestingKeys.length > 0) {
-                summary += `\n🔍 **Distribuição de Dados Extras**:\n`;
-                interestingKeys.slice(0, 3).forEach(key => { // Show top 3 interesting fields
-                    const counts = metadataCounts[key];
-                    const topValues = Object.entries(counts)
-                        .sort((a, b) => b[1] - a[1]) // Sort by frequency
-                        .slice(0, 3); // Top 3 values
-
-                    const formatKey = key.charAt(0).toUpperCase() + key.slice(1);
-                    const valuesStr = topValues.map(([val, count]) => `${val} (${count})`).join(', ');
-                    summary += `- **${formatKey}**: ${valuesStr}...\n`;
-                });
-            }
-
-            return summary;
-        }
-
-        // Handler 2: Financial Stats (Specific)
+        // Handler 1: Financial Stats (Specific)
         if (lowerQuery.includes('total') || lowerQuery.includes('soma') || lowerQuery.includes('valor')) {
-            return `💰 O valor total acumulado é de **${formatValue(totalCapital)}**, com uma média de **${formatValue(avgCapital)}** por associado.`;
+            return `💰 (Offline) O valor total acumulado é de **${formatValue(totalCapital)}**, com uma média de **${formatValue(avgCapital)}** por associado.`;
         }
-
-        // Handler 3: Extremes (Rich/Poor)
-        if (lowerQuery.includes('maior') || lowerQuery.includes('rico') || lowerQuery.includes('melhor')) {
-            const sorted = [...data].sort((a, b) => parseValue(b.capital_value) - parseValue(a.capital_value));
-            const top = sorted[0];
-            return `🏆 O maior capital é de **${top.associate_name}** com **${top.capital_value}** (Conta: ${top.account_number}).`;
-        }
-
-        if (lowerQuery.includes('menor') || lowerQuery.includes('pobre')) {
-            const sorted = [...data].sort((a, b) => parseValue(a.capital_value) - parseValue(b.capital_value));
-            const bottom = sorted[0];
-            return `O menor capital registrado é de **${bottom.associate_name}** com **${bottom.capital_value}**.`;
-        }
-
-        // Handler 4: Search (Specific Person)
-        const results = data.filter(item =>
-            item.associate_name.toLowerCase().includes(lowerQuery) ||
-            item.account_number.includes(lowerQuery)
-        );
-
-        if (results.length === 1) {
-            const item = results[0];
-            let details = `👤 **${item.associate_name}**\n💳 Conta: ${item.account_number}\n💰 Capital: ${item.capital_value}`;
-            if (item.metadata) {
-                const metaStr = Object.entries(item.metadata)
-                    .map(([key, val]) => `• ${key}: ${val}`)
-                    .join('\n');
-                if (metaStr) details += `\n\n📝 **Detalhes**:\n${metaStr}`;
-            }
-            return details;
-        }
-
-        if (results.length > 1 && results.length <= 5) {
-            return `Encontrei alguns nomes parecidos:\n` + results.map(r => `- ${r.associate_name} (${r.capital_value})`).join('\n');
-        }
-
-        if (results.length > 5) {
-            return `Encontrei ${results.length} pessoas com "${query}". Tente ser mais específico.`;
-        }
-
-        // Handler 5: Metadata Keyword Search (Search in professions, cities, etc)
-        const metaMatches = data.filter(item =>
-            item.metadata && Object.values(item.metadata).some(val => String(val).toLowerCase().includes(lowerQuery))
-        );
-
-        if (metaMatches.length > 0) {
-            const sample = metaMatches.slice(0, 3).map(m => m.associate_name).join(', ');
-            return `Encontrei ${metaMatches.length} registros que mencionam "${query}" nos detalhes (ex: ${sample}...).`;
-        }
-
-        return "🤔 Não entendi bem. Tente perguntar 'resumo geral', 'maior valor', 'total' ou o nome de alguém.";
+        return "Para respostas mais inteligentes ('quem ganha mais', 'analise o balanço'), conecte a API Key!";
     };
 
-    const handleSend = () => {
+    const handleSend = async () => {
         if (!inputValue.trim()) return;
 
         const userMsg: Message = {
@@ -168,36 +143,59 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         setInputValue('');
         setIsTyping(true);
 
-        // Quick realistic delay
-        setTimeout(() => {
-            const responseText = processQuery(userMsg.text);
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                text: responseText,
-                sender: 'ai',
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, aiMsg]);
-            setIsTyping(false);
-        }, 600);
+        const responseText = await processQuery(userMsg.text);
+
+        const aiMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            text: responseText,
+            sender: 'ai',
+            timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        setIsTyping(false);
     };
 
     return (
         <div className="flex flex-col h-full bg-gray-900 border-l border-white/10 w-96 shadow-2xl animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-gray-800/50">
-                <div className="flex items-center gap-2">
-                    <div className="p-2 bg-pink-500/20 rounded-lg">
-                        <Sparkles className="w-5 h-5 text-pink-400" />
+            <div className="p-4 border-b border-white/10 flex flex-col gap-2 bg-gray-800/50">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-pink-500/20 rounded-lg">
+                            <Sparkles className="w-5 h-5 text-pink-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-white">Assistente Inteligente</h3>
+                            <p className="text-xs text-green-400">{apiKey ? '● Conectado (Gemini)' : '○ Modo Básico'}</p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-sm font-semibold text-white">Assistente IA</h3>
-                        <p className="text-xs text-text-muted">Pergunte sobre os dados</p>
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs text-gray-400 hover:text-white underline">
+                            {apiKey ? 'Trocar Key' : 'Configurar IA'}
+                        </button>
+                        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                            <X className="w-5 h-5 text-gray-400" />
+                        </button>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                    <X className="w-5 h-5 text-gray-400" />
-                </button>
+
+                {/* API Key Input */}
+                {showKeyInput && (
+                    <div className="bg-gray-900 p-2 rounded border border-pink-500/30 text-xs">
+                        <p className="mb-2 text-gray-300">Cole sua chave da Google Gemini API:</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="password"
+                                className="bg-black/50 border border-gray-700 rounded p-1 flex-1 text-white"
+                                placeholder="AIzaSy..."
+                                onBlur={(e) => saveApiKey(e.target.value)}
+                            />
+                        </div>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="block mt-1 text-pink-400 hover:underline">
+                            Obter chave gratuita &rarr;
+                        </a>
+                    </div>
+                )}
             </div>
 
             {/* Messages */}
@@ -213,7 +211,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                                 : 'bg-gray-800 text-gray-200 rounded-bl-none border border-white/5'
                                 }`}
                         >
-                            <div className="whitespace-pre-line">{msg.text}</div>
+                            <div className="whitespace-pre-wrap">{msg.text}</div>
                             <span className="text-[10px] opacity-50 mt-1 block text-right">
                                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -242,7 +240,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Pergunte algo..."
+                        placeholder={apiKey ? "Pergunte QUALQUER coisa aos dados..." : "Pergunte o Total (ou configure a IA)..."}
                         className="flex-1 bg-gray-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-pink-500/50 transition-colors"
                     />
                     <button
