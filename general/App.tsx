@@ -11,6 +11,7 @@ import { RevenueTimeline } from './components/RevenueTimeline';
 import { CommandCenter } from './components/CommandCenter';
 import { BucketList } from './components/BucketList';
 import { EventsAgenda } from './components/EventsAgenda';
+import { CapitalSocialLoader } from './components/CapitalSocialLoader';
 import { PageTransition } from './components/PageTransition'; // Import Transition
 import { incomeProjections } from './data/incomeProjections'; // Import Projections
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -29,6 +30,7 @@ const Dashboard: React.FC = () => {
   const [showCommandCenter, setShowCommandCenter] = useState(false);
   const [showBucketList, setShowBucketList] = useState(false);
   const [showEventsAgenda, setShowEventsAgenda] = useState(false);
+  const [showCapitalSocial, setShowCapitalSocial] = useState(false);
 
   // Clock
   useEffect(() => {
@@ -426,7 +428,7 @@ const Dashboard: React.FC = () => {
 
   // Renderização principal com Transições (NEW)
   // Verifica se alguma página interna está aberta
-  const isInternalPageOpen = showRewardVault || showVehicleRoadmap || showRevenueTimeline || showCommandCenter || showBucketList || showEventsAgenda;
+  const isInternalPageOpen = showRewardVault || showVehicleRoadmap || showRevenueTimeline || showCommandCenter || showBucketList || showEventsAgenda || showCapitalSocial;
 
   return (
     <div className="min-h-screen text-text-primary relative overflow-hidden">
@@ -450,6 +452,7 @@ const Dashboard: React.FC = () => {
           setShowCommandCenter(false);
           setShowBucketList(false);
           setShowEventsAgenda(false);
+          setShowCapitalSocial(false);
           setCurrentMonth(monthId);
         }}
         onOpenRewardVault={() => {
@@ -459,6 +462,7 @@ const Dashboard: React.FC = () => {
           setShowCommandCenter(false);
           setShowBucketList(false);
           setShowEventsAgenda(false);
+          setShowCapitalSocial(false);
           setShowRewardVault(true);
         }}
         onOpenVehicleRoadmap={() => {
@@ -468,6 +472,7 @@ const Dashboard: React.FC = () => {
           setShowCommandCenter(false);
           setShowBucketList(false);
           setShowEventsAgenda(false);
+          setShowCapitalSocial(false);
           setShowVehicleRoadmap(true);
         }}
         onOpenRevenueTimeline={() => {
@@ -477,6 +482,7 @@ const Dashboard: React.FC = () => {
           setShowCommandCenter(false);
           setShowBucketList(false);
           setShowEventsAgenda(false);
+          setShowCapitalSocial(false);
           setShowRevenueTimeline(true);
         }}
         onOpenCommandCenter={() => {
@@ -486,6 +492,7 @@ const Dashboard: React.FC = () => {
           setShowRevenueTimeline(false);
           setShowBucketList(false);
           setShowEventsAgenda(false);
+          setShowCapitalSocial(false);
           setShowCommandCenter(true);
         }}
         onOpenBucketList={() => {
@@ -495,6 +502,7 @@ const Dashboard: React.FC = () => {
           setShowRevenueTimeline(false);
           setShowCommandCenter(false);
           setShowEventsAgenda(false);
+          setShowCapitalSocial(false);
           setShowBucketList(true);
         }}
         onOpenEventsAgenda={() => {
@@ -504,7 +512,18 @@ const Dashboard: React.FC = () => {
           setShowRevenueTimeline(false);
           setShowCommandCenter(false);
           setShowBucketList(false);
+          setShowCapitalSocial(false);
           setShowEventsAgenda(true);
+        }}
+        onOpenCapitalSocial={() => {
+          // Close other pages, open this one
+          setShowRewardVault(false);
+          setShowVehicleRoadmap(false);
+          setShowRevenueTimeline(false);
+          setShowCommandCenter(false);
+          setShowBucketList(false);
+          setShowEventsAgenda(false);
+          setShowCapitalSocial(true);
         }}
       />
 
@@ -558,6 +577,10 @@ const Dashboard: React.FC = () => {
           <EventsAgenda
             onBack={() => setShowEventsAgenda(false)}
           />
+        </PageTransition>
+
+        <PageTransition isVisible={showCapitalSocial}>
+          <CapitalSocialLoader />
         </PageTransition>
 
         {/* Dashboard Content - Hidden when internal page is open */}

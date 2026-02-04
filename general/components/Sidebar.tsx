@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MonthData } from '../types';
-import { ChevronDown, Calendar, Car, Trophy, TrendingUp, Radio, Scroll } from 'lucide-react';
+import { ChevronDown, Calendar, Car, Trophy, TrendingUp, Radio, Scroll, FileText } from 'lucide-react';
 
 interface SidebarProps {
   months: MonthData[];
@@ -12,9 +12,10 @@ interface SidebarProps {
   onOpenCommandCenter?: () => void;
   onOpenBucketList?: () => void;
   onOpenEventsAgenda?: () => void;
+  onOpenCapitalSocial?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSelectMonth, onOpenRewardVault, onOpenVehicleRoadmap, onOpenRevenueTimeline, onOpenCommandCenter, onOpenBucketList, onOpenEventsAgenda }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSelectMonth, onOpenRewardVault, onOpenVehicleRoadmap, onOpenRevenueTimeline, onOpenCommandCenter, onOpenBucketList, onOpenEventsAgenda, onOpenCapitalSocial }) => {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -187,6 +188,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
           >
             <Calendar className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Agenda 2026</span>
+          </button>
+        )}
+
+        {/* Capital Social Button */}
+        {onOpenCapitalSocial && (
+          <button
+            onClick={onOpenCapitalSocial}
+            className="w-full py-2.5 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center gap-2 text-pink-400 hover:bg-pink-500/20 transition-all"
+          >
+            <FileText className="w-4 h-4" />
+            <span className="text-xs font-bold uppercase tracking-wider">Capital Social</span>
           </button>
         )}
       </div>
