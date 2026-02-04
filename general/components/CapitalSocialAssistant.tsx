@@ -67,11 +67,17 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
             const payload = {
                 contents: [{
                     parts: [{
-                        text: `Atue como analista de dados. Dados JSON (n=Nome, c=Capital, a=Conta, m=Meta):
-                        ${JSON.stringify(contextData)}
+                        text: `Atue como um analista de dados SÊNIOR e OBJETIVO.
                         
-                        Pergunta: ${userQuery}.
-                        Responda em pt-BR. Use markdown.`
+                        Dados (JSON): ${JSON.stringify(contextData)}
+                        
+                        REGRAS P/ RESPOSTA:
+                        1. SEJA BREVE. Máximo de 3 a 5 linhas ou bullet points.
+                        2. Resuma os insights. Não liste dados brutos a menos que pedido.
+                        3. Use Markdown e emojis para facilitar leitura rápida.
+                        4. Destaque números importantes em **negrito**.
+                        
+                        Pergunta do Usuário: "${userQuery}"`
                     }]
                 }]
             };
