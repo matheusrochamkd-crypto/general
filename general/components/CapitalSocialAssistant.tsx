@@ -41,8 +41,9 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         scrollToBottom();
     }, [messages]);
 
-    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
-    const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem('gemini_api_key'));
+    const DEFAULT_KEY = "AIzaSyDbqi0s-DT04kUur9f3ALHDP7zIb6LboIo";
+    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || DEFAULT_KEY);
+    const [showKeyInput, setShowKeyInput] = useState(false);
 
     const saveApiKey = (key: string) => {
         localStorage.setItem('gemini_api_key', key);
