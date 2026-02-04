@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import Papa from 'papaparse';
-import { Upload, FileText, Check, AlertCircle, Save, CheckCircle2, MessageSquare, Table as TableIcon, Trash2, Edit2, X, RefreshCw } from 'lucide-react';
+import { Upload, FileText, Check, AlertCircle, Save, CheckCircle2, MessageSquare, Table as TableIcon, Trash2, Edit2, X, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import { CapitalSocialAssistant } from './CapitalSocialAssistant';
@@ -25,6 +24,7 @@ export const CapitalSocialLoader: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [showAssistant, setShowAssistant] = useState(false);
+    const [showTable, setShowTable] = useState(false); // Default: hidden
 
     // Editing State
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -85,6 +85,7 @@ export const CapitalSocialLoader: React.FC = () => {
         setLoading(true);
         setError(null);
         setSuccessMessage(null);
+        setShowTable(true); // Auto-show table on fresh upload for preview
 
         Papa.parse(file, {
             header: true,
@@ -127,7 +128,7 @@ export const CapitalSocialLoader: React.FC = () => {
                 }
             },
             error: (err) => {
-                setError(`Erro ao ler arquivo: ${err.message} `);
+                setError(`Erro ao ler arquivo: ${err.message}`);
                 setLoading(false);
             }
         });
@@ -150,6 +151,7 @@ export const CapitalSocialLoader: React.FC = () => {
 
             setSuccessMessage("Dados importados com sucesso!");
             setPreviewData([]); // Clear preview
+            setShowTable(false); // Hide table after save, as requested
             fetchCapitalSocial(); // Refresh list
         } catch (err: any) {
             setError(err.message);
@@ -216,10 +218,11 @@ export const CapitalSocialLoader: React.FC = () => {
 
     const activeData = previewData.length > 0 ? previewData : dbData;
     const isPreview = previewData.length > 0;
+    const hasData = dbData.length > 0;
 
     return (
         <div className="flex h-[calc(100vh-2rem)] gap-4 overflow-hidden p-6 max-w-[95vw] mx-auto">
-            <div className={`flex - 1 flex flex - col space - y - 6 overflow - y - auto min - w - 0 transition - all duration - 300 ${showAssistant ? 'mr-2' : ''} `}>
+            <div className={`flex-1 flex flex-col space-y-6 overflow-y-auto min-w-0 transition-all duration-300 ${showAssistant ? 'mr-2' : ''}`}>
 
                 {/* Header Card */}
                 <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg shrink-0">
@@ -234,26 +237,33 @@ export const CapitalSocialLoader: React.FC = () => {
                             </p>
                         </div>
 
+                        {/* Global Actions (Import, AI, Refresh) */}
                         <div className="flex gap-2">
-                            {dbData.length > 0 && !isPreview && (
+                            {/* Toggle Table Visibility */}
+                            {hasData && !isPreview && (
                                 <button
-                                    onClick={() => setShowAssistant(!showAssistant)}
-                                    className={`flex items - center gap - 2 px - 4 py - 2 rounded - lg font - medium transition - all ${showAssistant
-                                            ? 'bg-pink-600 text-white'
-                                            : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                        } `}
+                                    onClick={() => setShowTable(!showTable)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showTable
+                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                        }`}
                                 >
-                                    <MessageSquare className="w-4 h-4" />
-                                    {showAssistant ? 'Ocultar Chat' : 'Conversar com IA'}
+                                    {showTable ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    {showTable ? 'Ocultar Tabela' : 'Ver Tabela'}
                                 </button>
                             )}
 
-                            {isPreview && (
+                            {/* Toggle AI Chat */}
+                            {activeData.length > 0 && (
                                 <button
-                                    onClick={() => setPreviewData([])}
-                                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
+                                    onClick={() => setShowAssistant(!showAssistant)}
+                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showAssistant
+                                        ? 'bg-pink-600 text-white'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                        }`}
                                 >
-                                    Cancelar Importação
+                                    <MessageSquare className="w-4 h-4" />
+                                    {showAssistant ? 'Ocultar Chat' : 'Conversar com IA'}
                                 </button>
                             )}
                         </div>
@@ -269,7 +279,7 @@ export const CapitalSocialLoader: React.FC = () => {
                             </label>
 
                             <button onClick={fetchCapitalSocial} className="p-2 text-gray-400 hover:text-white" title="Atualizar">
-                                <RefreshCw className={`w - 5 h - 5 ${loading ? 'animate-spin' : ''} `} />
+                                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                             </button>
                         </div>
                     ) : (
@@ -278,14 +288,22 @@ export const CapitalSocialLoader: React.FC = () => {
                                 <AlertCircle className="w-5 h-5 text-pink-400" />
                                 <span className="text-pink-100">Confira os dados abaixo antes de salvar.</span>
                             </div>
-                            <button
-                                onClick={handleSavePreview}
-                                disabled={loading}
-                                className="flex items-center gap-2 px-6 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-bold shadow-lg shadow-pink-900/20"
-                            >
-                                <Save className="w-4 h-4" />
-                                {loading ? 'Salvando...' : 'Confirmar Importação'}
-                            </button>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => { setPreviewData([]); setShowTable(false); }}
+                                    className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSavePreview}
+                                    disabled={loading}
+                                    className="flex items-center gap-2 px-6 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-bold shadow-lg shadow-pink-900/20"
+                                >
+                                    <Save className="w-4 h-4" />
+                                    {loading ? 'Salvando...' : 'Confirmar Importação'}
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -304,96 +322,98 @@ export const CapitalSocialLoader: React.FC = () => {
                     )}
                 </div>
 
-                {/* Table Area */}
-                <div className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col shadow-lg overflow-hidden flex-1 min-h-0">
-                    <div className="flex-1 overflow-auto">
-                        <table className="w-full text-left border-collapse whitespace-nowrap">
-                            <thead className="bg-gray-900 sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="p-4 w-12 bg-gray-900 border-b border-gray-700"></th> {/* Actions */}
-                                    <th className="p-4 text-xs font-bold text-gray-300 uppercase tracking-wider border-b border-gray-700 bg-gray-900">Nome</th>
-                                    <th className="p-4 text-xs font-bold text-gray-300 uppercase tracking-wider border-b border-gray-700 bg-gray-900">Conta</th>
-                                    <th className="p-4 text-xs font-bold text-gray-300 uppercase tracking-wider border-b border-gray-700 bg-gray-900 text-right">Valor</th>
-                                    {/* Only show extra metadata cols if explicitly found, or just show 'Detalhes' */}
-                                    {headers.slice(3).map(h => (
-                                        <th key={h} className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-700 bg-gray-900">{h}</th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-700">
-                                {activeData.map((row, idx) => {
-                                    const isEditing = editingId === row.id;
-
-                                    return (
-                                        <tr key={row.id || idx} className={`transition - colors ${isEditing ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'} `}>
-                                            {/* Actions */}
-                                            <td className="p-4 flex gap-2">
-                                                {!isPreview && (
-                                                    isEditing ? (
-                                                        <>
-                                                            <button onClick={saveEdit} className="text-green-400 hover:text-green-300"><Check className="w-4 h-4" /></button>
-                                                            <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-300"><X className="w-4 h-4" /></button>
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <button onClick={() => startEdit(row)} className="text-blue-400 hover:text-blue-300"><Edit2 className="w-4 h-4" /></button>
-                                                            <button onClick={() => handleDelete(row.id!)} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
-                                                        </>
-                                                    )
-                                                )}
-                                            </td>
-
-                                            {/* Cells */}
-                                            <td className="p-4 text-sm text-gray-200">
-                                                {isEditing ? (
-                                                    <input
-                                                        className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white w-full"
-                                                        value={editForm?.associate_name}
-                                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, associate_name: e.target.value }) : null)}
-                                                    />
-                                                ) : row.associate_name}
-                                            </td>
-
-                                            <td className="p-4 text-sm text-gray-400 font-mono">
-                                                {isEditing ? (
-                                                    <input
-                                                        className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white w-full"
-                                                        value={editForm?.account_number}
-                                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, account_number: e.target.value }) : null)}
-                                                    />
-                                                ) : row.account_number}
-                                            </td>
-
-                                            <td className="p-4 text-sm text-emerald-400 font-mono text-right font-medium">
-                                                {isEditing ? (
-                                                    <input
-                                                        className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-right w-full"
-                                                        value={editForm?.capital_value}
-                                                        onChange={e => setEditForm(prev => prev ? ({ ...prev, capital_value: e.target.value }) : null)}
-                                                    />
-                                                ) : row.capital_value}
-                                            </td>
-
-                                            {/* Metadata Columns */}
-                                            {headers.slice(3).map(h => (
-                                                <td key={h} className="p-4 text-xs text-gray-500">
-                                                    {row.metadata?.[h] || row[h] || '-'}
-                                                </td>
-                                            ))}
-                                        </tr>
-                                    );
-                                })}
-                                {activeData.length === 0 && (
+                {/* Table Area (Conditional) */}
+                {(showTable || isPreview) && activeData.length > 0 && (
+                    <div className="bg-gray-800 rounded-xl border border-gray-700 flex flex-col shadow-lg overflow-hidden flex-1 min-h-0 animate-in fade-in slide-in-from-bottom-4">
+                        <div className="flex-1 overflow-auto">
+                            <table className="w-full text-left border-collapse whitespace-nowrap">
+                                <thead className="bg-gray-900 sticky top-0 z-10 shadow-sm">
                                     <tr>
-                                        <td colSpan={headers.length + 1} className="p-10 text-center text-gray-500">
-                                            {loading ? 'Carregando...' : 'Nenhum registro encontrado.'}
-                                        </td>
+                                        <th className="p-4 w-12 bg-gray-900 border-b border-gray-700"></th> {/* Actions */}
+                                        <th className="p-4 text-xs font-bold text-gray-300 uppercase tracking-wider border-b border-gray-700 bg-gray-900">Nome</th>
+                                        <th className="p-4 text-xs font-bold text-gray-300 uppercase tracking-wider border-b border-gray-700 bg-gray-900">Conta</th>
+                                        <th className="p-4 text-xs font-bold text-gray-300 uppercase tracking-wider border-b border-gray-700 bg-gray-900 text-right">Valor</th>
+                                        {/* Only show extra metadata cols if explicitly found, or just show 'Detalhes' */}
+                                        {headers.slice(3).map(h => (
+                                            <th key={h} className="p-4 text-xs font-bold text-gray-500 uppercase tracking-wider border-b border-gray-700 bg-gray-900">{h}</th>
+                                        ))}
                                     </tr>
-                                )}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody className="divide-y divide-gray-700">
+                                    {activeData.map((row, idx) => {
+                                        const isEditing = editingId === row.id;
+
+                                        return (
+                                            <tr key={row.id || idx} className={`transition-colors ${isEditing ? 'bg-gray-700/50' : 'hover:bg-gray-700/30'}`}>
+                                                {/* Actions */}
+                                                <td className="p-4 flex gap-2">
+                                                    {!isPreview && (
+                                                        isEditing ? (
+                                                            <>
+                                                                <button onClick={saveEdit} className="text-green-400 hover:text-green-300"><Check className="w-4 h-4" /></button>
+                                                                <button onClick={cancelEdit} className="text-gray-400 hover:text-gray-300"><X className="w-4 h-4" /></button>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <button onClick={() => startEdit(row)} className="text-blue-400 hover:text-blue-300"><Edit2 className="w-4 h-4" /></button>
+                                                                <button onClick={() => handleDelete(row.id!)} className="text-red-400 hover:text-red-300"><Trash2 className="w-4 h-4" /></button>
+                                                            </>
+                                                        )
+                                                    )}
+                                                </td>
+
+                                                {/* Cells */}
+                                                <td className="p-4 text-sm text-gray-200">
+                                                    {isEditing ? (
+                                                        <input
+                                                            className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white w-full"
+                                                            value={editForm?.associate_name}
+                                                            onChange={e => setEditForm(prev => prev ? ({ ...prev, associate_name: e.target.value }) : null)}
+                                                        />
+                                                    ) : row.associate_name}
+                                                </td>
+
+                                                <td className="p-4 text-sm text-gray-400 font-mono">
+                                                    {isEditing ? (
+                                                        <input
+                                                            className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white w-full"
+                                                            value={editForm?.account_number}
+                                                            onChange={e => setEditForm(prev => prev ? ({ ...prev, account_number: e.target.value }) : null)}
+                                                        />
+                                                    ) : row.account_number}
+                                                </td>
+
+                                                <td className="p-4 text-sm text-emerald-400 font-mono text-right font-medium">
+                                                    {isEditing ? (
+                                                        <input
+                                                            className="bg-gray-900 border border-gray-600 rounded px-2 py-1 text-white text-right w-full"
+                                                            value={editForm?.capital_value}
+                                                            onChange={e => setEditForm(prev => prev ? ({ ...prev, capital_value: e.target.value }) : null)}
+                                                        />
+                                                    ) : row.capital_value}
+                                                </td>
+
+                                                {/* Metadata Columns */}
+                                                {headers.slice(3).map(h => (
+                                                    <td key={h} className="p-4 text-xs text-gray-500">
+                                                        {row.metadata?.[h] || row[h] || '-'}
+                                                    </td>
+                                                ))}
+                                            </tr>
+                                        );
+                                    })}
+                                    {activeData.length === 0 && (
+                                        <tr>
+                                            <td colSpan={headers.length + 1} className="p-10 text-center text-gray-500">
+                                                {loading ? 'Carregando...' : 'Nenhum registro encontrado.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
+                )}
             </div>
 
             {/* AI Assistant Sidebar */}
@@ -406,4 +426,3 @@ export const CapitalSocialLoader: React.FC = () => {
         </div>
     );
 };
-
