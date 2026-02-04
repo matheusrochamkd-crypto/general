@@ -151,6 +151,15 @@ export const CapitalSocialLoader: React.FC = () => {
                 metadata: record.metadata
             }));
 
+            // 1. Delete all existing records for this user (User Request: Overwrite on new upload)
+            const { error: deleteError } = await supabase
+                .from('capital_social')
+                .delete()
+                .eq('user_id', user.id); // Explicit safety check, though RLS handles it
+
+            if (deleteError) throw deleteError;
+
+            // 2. Insert new records
             const { error: dbError } = await supabase.from('capital_social').insert(rowsToInsert);
             if (dbError) throw dbError;
 
