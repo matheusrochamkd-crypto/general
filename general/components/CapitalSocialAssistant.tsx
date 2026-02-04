@@ -41,85 +41,98 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         scrollToBottom();
     }, [messages]);
 
-    const DEFAULT_KEY = "AIzaSyDbqi0s-DT04kUur9f3ALHDP7zIb6LboIo";
-    // V3: FORCE RESET to ensure we use Gemini 2.5 and ditch the broken 2.0 config
-    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key_v3') || DEFAULT_KEY);
+    const DEFAULT_KEY = "xai-Pt1oLLpbuwMhuM76IbKtjtY4nszrjROhCiSLuwSFfvheKjP1qaAUTVmtvok9YCa9krn28vRh9GMhQ8Ex";
+    // Using Grok API
+    const [apiKey, setApiKey] = useState(localStorage.getItem('grok_api_key') || DEFAULT_KEY);
     const [showKeyInput, setShowKeyInput] = useState(false);
 
     const saveApiKey = (key: string) => {
-        localStorage.setItem('gemini_api_key_v3', key);
+        localStorage.setItem('grok_api_key', key);
         setApiKey(key);
         setShowKeyInput(false);
     };
 
-    const callGeminiAPI = async (userQuery: string) => {
+    const callGrokAPI = async (userQuery: string) => {
         if (!apiKey) return "Preciso de uma chave de API para funcionar.";
 
-        try {
-            // Context simplification
-            const contextData = data.map(d => ({
-                n: d.associate_name,
-                c: d.capital_value,
-                a: d.account_number,
-                m: d.metadata
-            }));
+        const MODELS = {
+            PRIMARY: "grok-2-vision-1212", // Tentativa de usar Free/Beta/Legacy
+            FALLBACK: "grok-4-latest" // Fallback pago/premium
+        };
 
-            const payload = {
-                contents: [{
-                    parts: [{
-                        text: `Atue como um analista de dados SÊNIOR e OBJETIVO.
-                        
-                        Dados (JSON): ${JSON.stringify(contextData)}
-                        
-                        REGRAS P/ RESPOSTA:
-                        1. SEJA BREVE. Máximo de 3 a 5 linhas ou bullet points.
-                        2. Resuma os insights. Não liste dados brutos a menos que pedido.
-                        3. Use Markdown e emojis para facilitar leitura rápida.
-                        4. Destaque números importantes em **negrito**.
-                        
-                        Pergunta do Usuário: "${userQuery}"`
-                    }]
-                }]
-            };
+        // Context simplification
+        const contextData = data.map(d => ({
+            n: d.associate_name,
+            c: d.capital_value,
+            a: d.account_number,
+            m: d.metadata
+        }));
 
-            // USING GEMINI 2.5 FLASH (Valid & Free)
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`, {
+        const systemPrompt = `Atue como um analista de dados SÊNIOR e OBJETIVO.
+                    
+                    Dados (JSON): ${JSON.stringify(contextData)}
+                    
+                    REGRAS P/ RESPOSTA:
+                    1. SEJA BREVE. Máximo de 3 a 5 linhas ou bullet points.
+                    2. Resuma os insights. Não liste dados brutos a menos que pedido.
+                    3. Use Markdown e emojis para facilitar leitura rápida.
+                    4. Destaque números importantes em **negrito**.`;
+
+        const createPayload = (model: string) => ({
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userQuery }
+            ],
+            model: model,
+            stream: false,
+            temperature: 0
+        });
+
+        const performRequest = async (model: string) => {
+            const response = await fetch('https://api.x.ai/v1/chat/completions', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(createPayload(model))
             });
 
             const resData = await response.json();
 
             if (!response.ok) {
                 const msg = resData.error?.message || response.statusText;
-                console.error("Gemini API Error:", msg);
-
-                // Smart fallback for quota issues
-                if (msg.includes('429') || msg.includes('Quota')) {
-                    throw new Error("Cota excedida (Google). Tentando modo offline...");
-                }
-                throw new Error(`Erro API (${response.status}): ${msg}`);
+                throw new Error(msg); // Lança erro para capturar no retry
             }
 
-            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
-            return text || "A IA não retornou texto.";
+            return resData.choices?.[0]?.message?.content;
+        };
+
+        try {
+            // Tenta Modelo Primário (Gratuito/Beta)
+            try {
+                return await performRequest(MODELS.PRIMARY);
+            } catch (primaryError: any) {
+                console.warn(`Erro no modelo ${MODELS.PRIMARY}, tentando fallback...`, primaryError);
+
+                // Tenta Modelo Fallback (Pago/Premium)
+                const fallbackText = await performRequest(MODELS.FALLBACK);
+                return `(🔄 Fallback p/ Grok 4): ${fallbackText}`;
+            }
 
         } catch (error: any) {
             console.error("Fetch Error:", error);
             // Fallback to internal logic with error notice
             const fallbackResponse = internalProcessQuery(userQuery);
-            return `⚠️ **API Google Instável**: ${error.message}\n\n✅ **Alternativa Offline (Ativada)**:\n${fallbackResponse}`;
+            return `⚠️ **API Grok Instável (Todos os modelos)**: ${error.message}\n\n✅ **Alternativa Offline (Ativada)**:\n${fallbackResponse}`;
         }
     };
 
     const processQuery = async (query: string) => {
-        // Fallback or "Hybrid" mode? No, user wants real AI.
-        // But let's keep the internal one if no API key is provided?
         if (!apiKey) {
-            return "⚠️ **Modo Offline**: Para análises complexas, insira sua chave da Google Gemini API no topo do chat.\n\n" + internalProcessQuery(query);
+            return "⚠️ **Modo Offline**: Para análises complexas, insira sua chave da Grok API no topo do chat.\n\n" + internalProcessQuery(query);
         }
-        return await callGeminiAPI(query);
+        return await callGrokAPI(query);
     };
 
     const internalProcessQuery = (query: string) => {
@@ -179,7 +192,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                         <div>
                             <h3 className="text-sm font-semibold text-white">IA Conectada</h3>
                             <p className="text-xs text-green-400">
-                                {apiKey ? '● Modelo 2.5 (Ativo)' : '○ Offline'}
+                                {apiKey ? '● Grok (Ativo)' : '○ Offline'}
                             </p>
                         </div>
                     </div>
@@ -196,7 +209,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                 {/* API Key Input */}
                 {showKeyInput && (
                     <div className="bg-gray-900 p-2 rounded border border-green-500/30 text-xs">
-                        <p className="mb-2 text-gray-300">Chave Google Gemini:</p>
+                        <p className="mb-2 text-gray-300">Chave Grok API:</p>
                         <div className="flex gap-2">
                             <input
                                 type="password"
@@ -205,7 +218,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                                 onBlur={(e) => saveApiKey(e.target.value)}
                             />
                         </div>
-                        <p className="mt-1 text-gray-500 text-[10px]">Usando modelo v2.5-flash (Grátis)</p>
+                        <p className="mt-1 text-gray-500 text-[10px]">Usando modelo Grok-4 Latest</p>
                     </div>
                 )}
             </div>
