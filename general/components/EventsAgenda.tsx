@@ -90,8 +90,9 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [formDesc, setFormDesc] = useState('');
     const [formStartDate, setFormStartDate] = useState('');
     const [formEndDate, setFormEndDate] = useState('');
-    const [formTime, setFormTime] = useState('');
-    const [formType, setFormType] = useState<'MEETING' | 'TASK' | 'REMINDER' | 'EVENT'>('EVENT');
+    const [formStartTime, setFormStartTime] = useState('');
+    const [formEndTime, setFormEndTime] = useState('');
+    // const [formType, setFormType] = useState<'MEETING' | 'TASK' | 'REMINDER' | 'EVENT'>('EVENT'); // Deprecated, always EVENT
 
     // Load events from Supabase on mount, fallback to localStorage
     useEffect(() => {
@@ -344,13 +345,29 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setFormDesc('');
         setFormStartDate(startDate || '');
         setFormEndDate(endDate || startDate || '');
-        setFormTime('');
-        setFormType('EVENT');
+        setFormStartTime('');
+        setFormEndTime('');
+        // setFormType('EVENT');
         setShowAddModal(true);
     };
 
     const handleSaveEvent = async () => {
         if (!formTitle || !formStartDate) return;
+
+        // Time logic
+        let finalTimeStr = '';
+        if (formStartTime) {
+            if (!formEndTime) {
+                // Default 1h duration
+                const [h, m] = formStartTime.split(':').map(Number);
+                const endH = (h + 1) % 24;
+                const endMStr = String(m).padStart(2, '0');
+                const endHStr = String(endH).padStart(2, '0');
+                finalTimeStr = `${formStartTime} - ${endHStr}:${endMStr}`;
+            } else {
+                finalTimeStr = `${formStartTime} - ${formEndTime}`;
+            }
+        }
 
         const newEvent: AgendaEvent = {
             id: Date.now().toString(),
@@ -358,8 +375,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             description: formDesc,
             startDate: formStartDate,
             endDate: formEndDate || formStartDate,
-            time: formTime,
-            type: formType,
+            time: finalTimeStr,
+            type: 'EVENT', // Hardcoded
             completed: false,
         };
 
@@ -563,12 +580,17 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                                 <div
                                                     key={event.id}
                                                     onClick={(e) => e.stopPropagation()}
-                                                    className={`text-[11px] px-1.5 py-0.5 truncate ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} ${isMultiDay
+                                                    className={`text-[11px] px-2 py-0.5 truncate ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} ${isMultiDay
                                                         ? `${isStart ? 'rounded-l' : 'rounded-none -ml-2'} ${isEnd ? 'rounded-r' : 'rounded-none -mr-2'}`
                                                         : 'rounded'
-                                                        }`}
+                                                        } flex justify-between items-center gap-2`}
                                                 >
-                                                    {(isStart || !isMultiDay) && event.title}
+                                                    <span className="truncate flex-1">{(isStart || !isMultiDay) && event.title}</span>
+                                                    {(isStart || !isMultiDay) && event.time && (
+                                                        <span className="text-[9px] opacity-75 font-mono whitespace-nowrap">
+                                                            {event.time.split('-')[0].trim()}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             );
                                         })}
@@ -629,7 +651,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
                 {/* Add Event Modal */}
                 {showAddModal && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm w-screen h-screen top-0 left-0">
                         <div className="w-full max-w-md bg-[#111111] border border-white/10 rounded-2xl p-6 shadow-2xl">
                             <h2 className="text-xl font-bold text-white mb-6">
                                 {formStartDate !== formEndDate ? 'Novo Evento (Múltiplos Dias)' : 'Novo Evento'}
@@ -668,34 +690,29 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <label className="block text-xs uppercase text-text-muted mb-1">Hora (opcional)</label>
-                                    <input
-                                        type="time"
-                                        value={formTime}
-                                        onChange={(e) => setFormTime(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-xs uppercase text-text-muted mb-1">Tipo</label>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {(['EVENT', 'MEETING', 'TASK', 'REMINDER'] as const).map((type) => (
-                                            <button
-                                                key={type}
-                                                type="button"
-                                                onClick={() => setFormType(type)}
-                                                className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all ${formType === type
-                                                    ? `${EVENT_COLORS[type].bg} ${EVENT_COLORS[type].text} border-current`
-                                                    : 'border-white/10 text-text-muted hover:text-white'
-                                                    }`}
-                                            >
-                                                {TYPE_LABELS[type]}
-                                            </button>
-                                        ))}
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-xs uppercase text-text-muted mb-1">Início</label>
+                                        <input
+                                            type="time"
+                                            value={formStartTime}
+                                            onChange={(e) => setFormStartTime(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs uppercase text-text-muted mb-1">Fim (Opcional)</label>
+                                        <input
+                                            type="time"
+                                            value={formEndTime}
+                                            onChange={(e) => setFormEndTime(e.target.value)}
+                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
+                                            placeholder="Auto 1h"
+                                        />
                                     </div>
                                 </div>
+
+                                {/* Type selector removed - always EVENT */}
 
                                 <div>
                                     <label className="block text-xs uppercase text-text-muted mb-1">Descrição</label>
