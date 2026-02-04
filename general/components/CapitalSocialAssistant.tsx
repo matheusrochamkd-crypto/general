@@ -42,11 +42,12 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
     }, [messages]);
 
     const DEFAULT_KEY = "AIzaSyDbqi0s-DT04kUur9f3ALHDP7zIb6LboIo";
-    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key') || DEFAULT_KEY);
+    // Use v2 to force-reset any old invalid keys user might have stored
+    const [apiKey, setApiKey] = useState(localStorage.getItem('gemini_api_key_v2') || DEFAULT_KEY);
     const [showKeyInput, setShowKeyInput] = useState(false);
 
     const saveApiKey = (key: string) => {
-        localStorage.setItem('gemini_api_key', key);
+        localStorage.setItem('gemini_api_key_v2', key);
         setApiKey(key);
         setShowKeyInput(false);
     };
@@ -55,11 +56,10 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         if (!apiKey) return "Preciso de uma chave de API para funcionar.";
 
         try {
-            // Prepare context with data sample (limit to avoid token overflow if huge, but 117 records is fine)
-            // Simplifying data to minimize tokens: Name, Capital, Account, Metadata
+            // Context simplification
             const contextData = data.map(d => ({
                 n: d.associate_name,
-                c: d.capital_value, // string format
+                c: d.capital_value,
                 a: d.account_number,
                 m: d.metadata
             }));
@@ -67,15 +67,11 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
             const payload = {
                 contents: [{
                     parts: [{
-                        text: `Você é um analista de dados financeiros de uma cooperativa.
-                        Aqui estão os dados (JSON) dos associados (n=Nome, c=Capital, a=Conta, m=Metadados):
+                        text: `Atue como analista de dados. Dados JSON (n=Nome, c=Capital, a=Conta, m=Meta):
                         ${JSON.stringify(contextData)}
                         
-                        Responda à pergunta do usuário com base NESSES dados. 
-                        Seja direto, analítico e use formatação Markdown.
-                        Não invente dados. Se não estiver no JSON, diga que não encontrou.
-                        
-                        Pergunta: ${userQuery}`
+                        Pergunta: ${userQuery}.
+                        Responda em pt-BR. Use markdown.`
                     }]
                 }]
             };
@@ -86,19 +82,22 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                 body: JSON.stringify(payload)
             });
 
-            const data = await response.json();
+            const resData = await response.json();
 
-            if (data.error) {
-                console.error("Gemini API Error:", data.error);
-                return `Erro na API: ${data.error.message || 'Falha desconhecida'}`;
+            if (!response.ok) {
+                const msg = resData.error?.message || response.statusText;
+                console.error("Gemini API Error:", msg);
+                throw new Error(`Erro API (${response.status}): ${msg}`);
             }
 
-            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-            return text || "Não consegui gerar uma resposta.";
+            const text = resData.candidates?.[0]?.content?.parts?.[0]?.text;
+            return text || "A IA não retornou texto.";
 
         } catch (error: any) {
             console.error("Fetch Error:", error);
-            return "Erro de conexão com a IA. Verifique sua Internet ou a Chave de API.";
+            // Fallback to internal logic with error notice
+            const fallbackResponse = internalProcessQuery(userQuery);
+            return `⚠️ **Erro na IA Online**: ${error.message}\n\n🤖 **Resposta Automática (Offline)**:\n${fallbackResponse}`;
         }
     };
 
