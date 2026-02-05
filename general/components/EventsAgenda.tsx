@@ -407,7 +407,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 <div className="space-y-1 flex-1">
                                     {dayEvents.slice(0, 5).map(ev => (
                                         <div key={ev.id} className={`text-[11px] px-2 py-1 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-2 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all`}>
-                                            {ev.startTime && <span className="font-mono opacity-80 text-[10px] tracking-tighter">{ev.startTime}</span>}
+                                            {ev.startTime && <span className="font-mono font-bold text-xs opacity-100">{ev.startTime}</span>}
                                             <span className="truncate font-medium flex-1">{ev.title}</span>
                                         </div>
                                     ))}
