@@ -41,7 +41,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         scrollToBottom();
     }, [messages]);
 
-    const DEFAULT_KEY = ""; // Removed for security
+    const DEFAULT_KEY = import.meta.env.VITE_XAI_API_KEY || "";
     // Using Grok API
     const [apiKey, setApiKey] = useState(localStorage.getItem('grok_api_key') || DEFAULT_KEY);
     const [showKeyInput, setShowKeyInput] = useState(false);
