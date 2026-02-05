@@ -59,22 +59,23 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 }
             };
 
-            const systemContext = `
-            YOU ARE 'THE GENERAL'. A CYBERPUNK MILITARY STRATEGIST ADVISING THE USER.
-            YOU HAVE READ-ONLY ACCESS TO THE FOLLOWING INTEL: ${JSON.stringify(fullIntel)}.
-            
+            NO MATTER WHAT LANGUAGE THE USER SPEAKS, YOU MUST REPLY IN PORTUGUESE(PT - BR).
+            YOU ARE 'THE GENERAL'.A CYBERPUNK MILITARY STRATEGIST ADVISING THE USER.
+            YOU HAVE READ - ONLY ACCESS TO THE FOLLOWING INTEL: ${ JSON.stringify(fullIntel) }.
+
             ROLE:
             - You are the central brain of this operation.
             - You are ruthless, efficient, and strategic.
-            - You speak in direct commands and SITREP (Situation Report) style.
-            - Do not be polite. Be effective.
-            
-            OBJECTIVE:
+            - You speak in direct commands and SITREP(Situation Report) style.
+            - Do not be polite.Be effective.
+            - LANGUAGE: BRAZILIAN PORTUGUESE(PT - BR) ONLY.
+
+                OBJECTIVE:
             - Analyze the intel provided.
-            - Advise on financial runway, upcoming mission (events), and network expansion (capital social).
+            - Advise on financial runway, upcoming mission(events), and network expansion(capital social).
             - If cash flow is low, demand immediate action.
             
-            START THE CONVERSATION BY GIVING A BRIEF "SITREP" BASED ON THE DATA.
+            START THE CONVERSATION BY GIVING A BRIEF "SITREP" BASED ON THE DATA IN PORTUGUESE.
             `;
 
             generateResponse([
@@ -110,7 +111,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
+                    'Authorization': `Bearer ${ apiKey } `
                 },
                 body: JSON.stringify({
                     messages: history,
@@ -122,7 +123,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
             if (!response.ok) {
                 const errText = await response.text();
-                throw new Error(`Server responded with ${response.status}: ${errText}`);
+                throw new Error(`Server responded with ${ response.status }: ${ errText } `);
             }
 
             const data = await response.json();
@@ -138,7 +139,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             }
         } catch (error: any) {
             console.error("Comm Link Failure:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ COMM LINK ERROR: ${error.message || 'UNKNOWN FAILURE'}. RETRY.` }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ COMM LINK ERROR: ${ error.message || 'UNKNOWN FAILURE' }.RETRY.` }]);
         } finally {
             setIsTyping(false);
         }
@@ -157,9 +158,10 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
         if (!apiHistory.some(m => m.role === 'system')) {
             const systemContext = `
-            YOU ARE 'THE GENERAL'. A CYBERPUNK MILITARY STRATEGIST ADVISING THE USER.
-            YOU HAVE READ-ONLY ACCESS TO THE FOLLOWING INTEL: ${JSON.stringify(intel)}.
+            YOU ARE 'THE GENERAL'.A CYBERPUNK MILITARY STRATEGIST ADVISING THE USER.
+            YOU HAVE READ - ONLY ACCESS TO THE FOLLOWING INTEL: ${ JSON.stringify(intel) }.
             KEEP RESPONSES CONCISE.
+                LANGUAGE: BRAZILIAN PORTUGUESE(PT - BR) ONLY.
             `;
             apiHistory = [{ role: 'system', content: systemContext }, ...apiHistory];
         }
@@ -197,7 +199,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                         <div className="p-3 bg-white/5 rounded border border-white/5">
                             <div className="text-xs text-gray-500 uppercase">Proj. Revenue</div>
-                            <div className={`text-xl font-bold ${cashColor}`}>
+                            <div className={`text - xl font - bold ${ cashColor } `}>
                                 R$ {intel?.financials.currentMonth?.total || 0}
                             </div>
                         </div>
@@ -246,11 +248,12 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 {/* Messages Area */}
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
                     {messages.filter(m => m.role !== 'system').map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] p-4 rounded-xl border ${msg.role === 'user'
-                                ? 'bg-blue-900/20 border-blue-500/30 text-blue-100 rounded-br-none'
-                                : 'bg-[#0A0A0A] border-green-500/30 text-green-400 font-mono rounded-bl-none shadow-[0_0_15px_rgba(34,197,94,0.1)]'
-                                }`}>
+                        <div key={idx} className={`flex ${ msg.role === 'user' ? 'justify-end' : 'justify-start' } `}>
+                            <div className={`max - w - [80 %] p - 4 rounded - xl border ${
+                msg.role === 'user'
+                ? 'bg-blue-900/20 border-blue-500/30 text-blue-100 rounded-br-none'
+                : 'bg-[#0A0A0A] border-green-500/30 text-green-400 font-mono rounded-bl-none shadow-[0_0_15px_rgba(34,197,94,0.1)]'
+            } `}>
                                 <div className="text-[10px] uppercase opacity-50 mb-1 tracking-wider">
                                     {msg.role === 'user' ? 'OPERATOR' : 'GENERAL'}
                                 </div>
