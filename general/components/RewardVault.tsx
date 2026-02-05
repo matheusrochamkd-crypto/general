@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock, Unlock, Car, Mountain, Compass, ArrowLeft, Shield, Zap, Target } from 'lucide-react';
+import { Lock, Unlock, Car, Mountain, Compass, ArrowLeft, Shield, Zap, Target, Plane } from 'lucide-react';
 
 interface RewardVaultProps {
     onBack: () => void;
@@ -53,6 +53,17 @@ export const RewardVault: React.FC<RewardVaultProps> = ({
             unlockAmount: 3000,
             backgroundImage: 'https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?w=800&q=80', // Friends/Trip vibe
             icon: <Compass className="w-6 h-6" />
+        },
+        {
+            id: 'usa-trip',
+            level: 3,
+            codename: 'OPERAÇÃO INTERNATIONAL',
+            subtitle: 'Viagem para EUA',
+            description: 'Expansão de fronteiras. Viagem para os Estados Unidos desbloqueada ao atingir a meta de R$ 5.000.',
+            cost: 500,
+            unlockAmount: 5000,
+            backgroundImage: 'https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800&q=80', // NYC/USA vibe
+            icon: <Plane className="w-6 h-6" />
         }
     ];
 
