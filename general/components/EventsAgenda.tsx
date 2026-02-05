@@ -27,10 +27,10 @@ const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Jul
 
 // Colors for events
 const EVENT_COLORS = {
-    MEETING: { bg: 'bg-[#039BE5]', text: 'text-white' }, // Blue
-    TASK: { bg: 'bg-[#33B679]', text: 'text-white' },    // Green
-    REMINDER: { bg: 'bg-[#F4511E]', text: 'text-white' }, // OrangeRed
-    EVENT: { bg: 'bg-[#8E24AA]', text: 'text-white' },    // Purple
+    MEETING: { bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-400' },
+    TASK: { bg: 'bg-emerald-600', text: 'text-white', border: 'border-emerald-400' },
+    REMINDER: { bg: 'bg-amber-600', text: 'text-white', border: 'border-amber-400' },
+    EVENT: { bg: 'bg-purple-600', text: 'text-white', border: 'border-purple-400' },
 };
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
@@ -397,20 +397,21 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         return (
                             <div
                                 key={day}
-                                className={`min-h-[100px] bg-[#0A0A0A] border border-white/5 p-2 transition hover:bg-white/[0.03] cursor-pointer ${isToday ? 'bg-blue-900/10 border-blue-500/30' : ''}`}
+                                className={`min-h-[120px] bg-[#0A0A0A] border border-white/5 p-2 transition hover:bg-white/[0.03] cursor-pointer flex flex-col gap-1 ${isToday ? 'bg-blue-900/10 border-blue-500/30' : ''}`}
                                 onClick={() => {
                                     setCurrentDate(new Date(year, month, day));
                                     setView('WEEK'); // Drill down
                                 }}
                             >
-                                <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{day}</div>
-                                <div className="space-y-1">
-                                    {dayEvents.slice(0, 4).map(ev => (
-                                        <div key={ev.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate ${EVENT_COLORS[ev.type].bg} text-white`}>
-                                            {ev.title}
+                                <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-400' : 'text-gray-400'}`}>{day}</div>
+                                <div className="space-y-1 flex-1">
+                                    {dayEvents.slice(0, 5).map(ev => (
+                                        <div key={ev.id} className={`text-[11px] px-2 py-1 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-2 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all`}>
+                                            {ev.startTime && <span className="font-mono opacity-80 text-[10px] tracking-tighter">{ev.startTime}</span>}
+                                            <span className="truncate font-medium flex-1">{ev.title}</span>
                                         </div>
                                     ))}
-                                    {dayEvents.length > 4 && <div className="text-[10px] text-gray-500">+{dayEvents.length - 4} mais</div>}
+                                    {dayEvents.length > 5 && <div className="text-[10px] text-gray-500 pl-1">+{dayEvents.length - 5} mais</div>}
                                 </div>
                             </div>
                         );
