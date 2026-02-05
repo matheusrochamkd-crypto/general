@@ -94,9 +94,18 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
 
     const generateResponse = async (history: Message[]) => {
         setIsTyping(true);
+        console.log("Comm Link: Initiating...");
+
         try {
             const apiKey = import.meta.env.VITE_XAI_API_KEY;
 
+            if (!apiKey) {
+                console.error("Comm Link Critical Failure: Missing API Key");
+                setMessages(prev => [...prev, { role: 'assistant', content: "⚠️ ALERT: SECURE KEY MISSING. CHECK ENV CONFIGURATION." }]);
+                return;
+            }
+
+            console.log("Comm Link: Sending transmission...");
             const response = await fetch('https://api.x.ai/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -105,23 +114,31 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 },
                 body: JSON.stringify({
                     messages: history,
-                    model: 'grok-beta',
+                    model: 'grok-2', // Switching to grok-2 for better performance
                     stream: false,
                     temperature: 0.7
                 })
             });
 
+            if (!response.ok) {
+                const errText = await response.text();
+                throw new Error(`Server responded with ${response.status}: ${errText}`);
+            }
+
             const data = await response.json();
+            console.log("Comm Link: Transmission received.", data);
 
             if (data.choices && data.choices.length > 0) {
                 const aiMessage = data.choices[0].message;
                 setMessages(prev => {
                     return [...prev, aiMessage];
                 });
+            } else {
+                console.warn("Comm Link: Empty response payload.");
             }
-        } catch (error) {
+        } catch (error: any) {
             console.error("Comm Link Failure:", error);
-            setMessages(prev => [...prev, { role: 'assistant', content: "⚠️ COMM LINK ERROR. ENCRYPTION FAILED. RETRY." }]);
+            setMessages(prev => [...prev, { role: 'assistant', content: `⚠️ COMM LINK ERROR: ${error.message || 'UNKNOWN FAILURE'}. RETRY.` }]);
         } finally {
             setIsTyping(false);
         }
@@ -231,8 +248,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                     {messages.filter(m => m.role !== 'system').map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[80%] p-4 rounded-xl border ${msg.role === 'user'
-                                    ? 'bg-blue-900/20 border-blue-500/30 text-blue-100 rounded-br-none'
-                                    : 'bg-[#0A0A0A] border-green-500/30 text-green-400 font-mono rounded-bl-none shadow-[0_0_15px_rgba(34,197,94,0.1)]'
+                                ? 'bg-blue-900/20 border-blue-500/30 text-blue-100 rounded-br-none'
+                                : 'bg-[#0A0A0A] border-green-500/30 text-green-400 font-mono rounded-bl-none shadow-[0_0_15px_rgba(34,197,94,0.1)]'
                                 }`}>
                                 <div className="text-[10px] uppercase opacity-50 mb-1 tracking-wider">
                                     {msg.role === 'user' ? 'OPERATOR' : 'GENERAL'}
