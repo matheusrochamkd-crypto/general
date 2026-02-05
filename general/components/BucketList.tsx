@@ -120,10 +120,10 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             border: 'border-purple-500/50',
             bg: 'bg-purple-500/10',
             items: [
-                { id: 'aurora', text: 'Ver a Aurora Boreal', subtitle: 'Caçar as luzes do norte', image: 'https://images.unsplash.com/photo-1531366936337-7c912a4589d7?auto=format&fit=crop&w=800&q=80' },
-                { id: 'volcano', text: 'Ver um Vulcão Ativo', subtitle: 'Sentir a terra viva', image: 'https://images.unsplash.com/photo-1462332420958-a05d1e002413?auto=format&fit=crop&w=800&q=80' },
-                { id: 'snow', text: 'Ver Neve real', subtitle: 'O silêncio do branco', image: 'https://images.unsplash.com/photo-1483921020237-60fbbb7ea943?auto=format&fit=crop&w=800&q=80' },
-                { id: 'ski', text: 'Esquiar', subtitle: 'Dominar a descida', image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=800&q=80' }
+                { id: 'aurora', text: 'Ver a Aurora Boreal', subtitle: 'Caçar as luzes do norte', image: 'https://images.unsplash.com/photo-1579033461380-adb47c3eb938?auto=format&fit=crop&w=800&q=80' }, // Green Aurora Night
+                { id: 'volcano', text: 'Ver um Vulcão Ativo', subtitle: 'Sentir a terra viva', image: 'https://images.unsplash.com/photo-1462331940185-00029557301c?auto=format&fit=crop&w=800&q=80' }, // Active Volcano
+                { id: 'snow', text: 'Ver Neve real', subtitle: 'O silêncio do branco', image: 'https://images.unsplash.com/photo-1517299321609-52687d1bc555?auto=format&fit=crop&w=800&q=80' }, // Winter Snow Forest
+                { id: 'ski', text: 'Esquiar', subtitle: 'Dominar a descida', image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=800&q=80' } // Skiing (confirmed working)
             ]
         },
         {
@@ -135,8 +135,8 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             border: 'border-yellow-500/50',
             bg: 'bg-yellow-500/10',
             items: [
-                { id: 'pico_parana', text: 'Subir o Pico Paraná', subtitle: 'O teto do Sul', image: 'https://images.unsplash.com/photo-1588785891461-9c84f6869e5d?auto=format&fit=crop&w=800&q=80' }, // Replaced with generic mountain/hiking
-                { id: 'buraco_padre', text: 'Explorar o Buraco do Padre', subtitle: 'A furna e a cachoeira', image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80' } // Waterfall/Cave
+                { id: 'pico_parana', text: 'Subir o Pico Paraná', subtitle: 'O teto do Sul', image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80' }, // Dramatic Mountains
+                { id: 'buraco_padre', text: 'Explorar o Buraco do Padre', subtitle: 'A furna e a cachoeira', image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80' } // Waterfall
             ]
         },
         {
@@ -148,8 +148,8 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             border: 'border-amber-500/50',
             bg: 'bg-amber-500/10',
             items: [
-                { id: 'museu_feb', text: 'Museu do Expedicionário', subtitle: 'Honrar a FEB', image: 'https://images.unsplash.com/photo-1599554316688-21d72605335d?auto=format&fit=crop&w=800&q=80' }, // War/History
-                { id: 'museu_holocausto', text: 'Museu do Holocausto', subtitle: 'Entender a humanidade', image: 'https://images.unsplash.com/photo-1551189671-d68b9283a811?auto=format&fit=crop&w=800&q=80' }, // Museum/Dark
+                { id: 'museu_feb', text: 'Museu do Expedicionário', subtitle: 'Honrar a FEB', image: 'https://images.unsplash.com/photo-1599554316688-21d72605335d?auto=format&fit=crop&w=800&q=80' }, // War History
+                { id: 'museu_holocausto', text: 'Museu do Holocausto', subtitle: 'Entender a humanidade', image: 'https://images.unsplash.com/photo-1551189671-d68b9283a811?auto=format&fit=crop&w=800&q=80' }, // Museum
                 { id: 'museu_atilio', text: 'Museu Atílio Rocco', subtitle: 'Minhas raízes em SJP', image: 'https://images.unsplash.com/photo-1549144342-63b72f10256d?auto=format&fit=crop&w=800&q=80' } // Vintage
             ]
         }
