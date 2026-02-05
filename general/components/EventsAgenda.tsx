@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowLeft, Plus, Calendar, CheckCircle2, Circle, Trash2, ChevronLeft, ChevronRight, Sparkles, X, AlertTriangle, TrendingUp, ListTodo, Cloud, CloudOff, Clock, RotateCw, Edit2 } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { ArrowLeft, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, AlignLeft, X, Trash2, CheckCircle2, Circle, MoreVertical, Search, Settings, HelpCircle, Menu } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
@@ -11,941 +11,595 @@ interface AgendaEvent {
     id: string;
     title: string;
     description: string;
-    startDate: string;
-    endDate: string;
-    time: string;
+    startDate: string; // YYYY-MM-DD
+    endDate: string;   // YYYY-MM-DD
+    startTime?: string; // HH:MM
+    endTime?: string;   // HH:MM
     type: 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT';
     completed: boolean;
+    color?: string;
 }
 
+type ViewType = 'MONTH' | 'WEEK' | 'DAY';
+
+const WEEKDAYS = ['DOM', 'SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB'];
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
-const EVENT_COLORS: Record<string, { bg: string; text: string; solid: string }> = {
-    MEETING: { bg: 'bg-blue-500/20', text: 'text-blue-400', solid: 'bg-blue-500' },
-    TASK: { bg: 'bg-green-500/20', text: 'text-green-400', solid: 'bg-green-500' },
-    REMINDER: { bg: 'bg-yellow-500/20', text: 'text-yellow-400', solid: 'bg-yellow-500' },
-    EVENT: { bg: 'bg-purple-500/20', text: 'text-purple-400', solid: 'bg-purple-500' },
-};
-
-const TYPE_LABELS: Record<string, string> = {
-    MEETING: 'Reunião',
-    TASK: 'Tarefa',
-    REMINDER: 'Lembrete',
-    EVENT: 'Evento',
-};
-
-// Pure mapping functions (outside component to avoid initialization issues)
-const mapAgendaEventFromDb = (row: any): AgendaEvent => ({
-    id: row.id,
-    title: row.title,
-    description: row.description || '',
-    startDate: row.start_date,
-    endDate: row.end_date || row.start_date,
-    time: row.time || '',
-    type: row.type || 'EVENT',
-    completed: row.completed || false,
-});
-
-const mapAgendaEventToDb = (event: AgendaEvent) => ({
-    id: event.id,
-    title: event.title,
-    description: event.description,
-    start_date: event.startDate,
-    end_date: event.endDate,
-    time: event.time,
-    type: event.type,
-    completed: event.completed,
-});
-
-const getDaysBetween = (start: string, end: string): string[] => {
-    const days: string[] = [];
-    const startDate = new Date(start);
-    const endDate = new Date(end);
-    const current = new Date(startDate);
-    while (current <= endDate) {
-        days.push(`${current.getFullYear()} -${String(current.getMonth() + 1).padStart(2, '0')} -${String(current.getDate()).padStart(2, '0')} `);
-        current.setDate(current.getDate() + 1);
-    }
-    return days;
+// Colors for events
+const EVENT_COLORS = {
+    MEETING: { bg: 'bg-[#039BE5]', text: 'text-white' }, // Blue
+    TASK: { bg: 'bg-[#33B679]', text: 'text-white' },    // Green
+    REMINDER: { bg: 'bg-[#F4511E]', text: 'text-white' }, // OrangeRed
+    EVENT: { bg: 'bg-[#8E24AA]', text: 'text-white' },    // Purple
 };
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
-    console.log('EventsAgenda mounting...');
-
-    const [events, setEvents] = useState<AgendaEvent[]>([]);
-    const [isSynced, setIsSynced] = useState<boolean | null>(null); // null = loading, true = synced, false = offline
-    const [lastSyncTime, setLastSyncTime] = useState<string>('');
-
-    const [currentDate, setCurrentDate] = useState(new Date(2026, 1, 1));
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [showAIPanel, setShowAIPanel] = useState(false);
-
     const { user } = useAuth();
+    const [events, setEvents] = useState<AgendaEvent[]>([]);
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [view, setView] = useState<ViewType>('WEEK'); // Default to WEEK as requested "versions back" often implied this
+    const [sidebarOpen, setSidebarOpen] = useState(true);
 
-    // Drag selection state
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragStart, setDragStart] = useState<string | null>(null);
-    const [dragEnd, setDragEnd] = useState<string | null>(null);
-
-    const [editingEventId, setEditingEventId] = useState<string | null>(null);
-
-    // Form state
+    // Modal State
+    const [showModal, setShowModal] = useState(false);
+    const [selectedEvent, setSelectedEvent] = useState<AgendaEvent | null>(null);
     const [formTitle, setFormTitle] = useState('');
     const [formDesc, setFormDesc] = useState('');
     const [formStartDate, setFormStartDate] = useState('');
     const [formEndDate, setFormEndDate] = useState('');
     const [formStartTime, setFormStartTime] = useState('');
     const [formEndTime, setFormEndTime] = useState('');
+    const [formType, setFormType] = useState<AgendaEvent['type']>('EVENT');
 
-    // Load events from Supabase on mount, fallback to localStorage
+    // Data Loading & Legacy Recovery
     useEffect(() => {
-        // ... (existing load logic)
-        // ... (keeping existing load logic hidden for brevity if unchanged, but need to be careful with replace_file_content)
-        // Actually, I should use multi_replace for surgical edits.
-        // Cancelling this replace to use multi_replace.
-
-        // Helper functions defined INSIDE useEffect to ensure proper order
-        const loadFromLocalStorageInner = (): AgendaEvent[] => {
-            try {
-                const savedNew = localStorage.getItem('agenda_events_2026_v2');
-                if (savedNew) {
-                    const parsed = JSON.parse(savedNew);
-                    if (!Array.isArray(parsed)) {
-                        localStorage.removeItem('agenda_events_2026_v2');
-                        return [];
-                    }
-                    const validEvents = parsed.filter((e: any) => e && e.id && e.title).map((e: any) => ({
-                        id: String(e.id),
-                        title: String(e.title || ''),
-                        description: String(e.description || ''),
-                        startDate: String(e.startDate || e.date || ''),
-                        endDate: String(e.endDate || e.startDate || e.date || ''),
-                        time: String(e.time || ''),
-                        type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
-                        completed: Boolean(e.completed),
-                    }));
-                    return validEvents;
-                }
-                const savedOld = localStorage.getItem('agenda_events_2026');
-                if (savedOld) {
-                    const oldEvents = JSON.parse(savedOld);
-                    if (!Array.isArray(oldEvents)) return [];
-                    const migratedEvents = oldEvents.filter((e: any) => e && e.id).map((e: any) => ({
-                        id: String(e.id),
-                        title: String(e.title || ''),
-                        description: String(e.description || ''),
-                        startDate: String(e.date || e.startDate || ''),
-                        endDate: String(e.date || e.endDate || e.startDate || ''),
-                        time: String(e.time || ''),
-                        type: (['MEETING', 'TASK', 'REMINDER', 'EVENT'].includes(e.type) ? e.type : 'EVENT') as 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT',
-                        completed: Boolean(e.completed),
-                    }));
-                    localStorage.setItem('agenda_events_2026_v2', JSON.stringify(migratedEvents));
-                    return migratedEvents;
-                }
-            } catch (err) {
-                console.error('Error loading localStorage:', err);
-                localStorage.removeItem('agenda_events_2026_v2');
-                localStorage.removeItem('agenda_events_2026');
-            }
-            return [];
-        };
-
-        const syncLocalToSupabaseInner = async (localEvents: AgendaEvent[]) => {
-            try {
-                for (const event of localEvents) {
-                    await supabase.from('agenda_events').upsert(mapAgendaEventToDb(event), { onConflict: 'id' });
-                }
-                setIsSynced(true);
-                setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-            } catch (err) {
-                console.error('Sync error:', err);
-                setIsSynced(false);
-            }
-        };
-
         const loadEvents = async () => {
+            // 1. Try Supabase first
             try {
                 const { data, error } = await supabase
                     .from('agenda_events')
                     .select('*')
-                    .order('start_date', { ascending: true });
+                    .eq('user_id', user?.id);
 
-                if (error) {
-                    console.warn('Supabase error:', error.message);
-                    const local = loadFromLocalStorageInner();
-                    setEvents(local);
-                    setIsSynced(false);
-                } else if (data && data.length > 0) {
-                    const mapped = data.map(mapAgendaEventFromDb);
+                if (data && data.length > 0 && !error) {
+                    const mapped = data.map((e: any) => ({
+                        id: e.id,
+                        title: e.title,
+                        description: e.description || '',
+                        startDate: e.start_date,
+                        endDate: e.end_date || e.start_date,
+                        startTime: e.time ? e.time.split('-')[0]?.trim() : undefined,
+                        endTime: e.time ? e.time.split('-')[1]?.trim() : undefined,
+                        type: e.type || 'EVENT',
+                        completed: e.completed || false
+                    }));
                     setEvents(mapped);
-                    localStorage.setItem('agenda_events_2026_v2', JSON.stringify(mapped));
-                    setIsSynced(true);
-                    setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
-                } else {
-                    const local = loadFromLocalStorageInner();
-                    setEvents(local);
-                    if (local.length > 0) {
-                        await syncLocalToSupabaseInner(local);
-                    }
-                    setIsSynced(true);
-                }
-
-                // Temporary Seed: Add EPJE Trip if missing (User Request)
-                const epjeId = 'epje-cascavel-2026';
-                const { data: existing } = await supabase.from('agenda_events').select('id').eq('id', epjeId).single();
-
-                if (!existing) {
-                    console.log('Seeding EPJE Trip...');
-                    const epjeEvent: AgendaEvent = {
-                        id: epjeId,
-                        title: 'Viagem EPJE Cascavel',
-                        description: 'Viagem com 10 amigos e colegas. Meta: R$ 3.000.',
-                        startDate: '2026-03-13',
-                        endDate: '2026-03-15',
-                        time: '08:00',
-                        type: 'EVENT',
-                        completed: false
-                    };
-
-                    // Insert into DB
-                    await supabase.from('agenda_events').upsert(mapAgendaEventToDb(epjeEvent));
-
-                    // Update Local State
-                    setEvents(prev => {
-                        const exists = prev.find(e => e.id === epjeId);
-                        if (exists) return prev;
-                        const newEvents = [...prev, epjeEvent];
-                        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
-                        return newEvents;
-                    });
+                    // Sync to local
+                    localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
+                    return;
                 }
             } catch (err) {
-                console.error('Error loading:', err);
-                const local = loadFromLocalStorageInner();
-                setEvents(local);
-                setIsSynced(false);
+                console.error("Supabase load error", err);
+            }
+
+            // 2. Fallback to LocalStorage (Newest V3)
+            const localV3 = localStorage.getItem('agenda_events_2026_v3');
+            if (localV3) {
+                setEvents(JSON.parse(localV3));
+                return;
+            }
+
+            // 3. Fallback to LocalStorage (V2 - Recent)
+            const localV2 = localStorage.getItem('agenda_events_2026_v2');
+            if (localV2) {
+                const parsed = JSON.parse(localV2);
+                const mapped = parsed.map((e: any) => ({
+                    ...e,
+                    startDate: e.startDate || e.date, // normalizing
+                    startTime: e.time ? e.time.split('-')[0]?.trim() : undefined
+                }));
+                setEvents(mapped);
+                localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
+                return;
+            }
+
+            // 4. Fallback to LocalStorage (Legacy/Original)
+            const localOld = localStorage.getItem('agenda_events_2026');
+            if (localOld) {
+                const parsed = JSON.parse(localOld);
+                // Map old format to new
+                const mapped = parsed.map((e: any) => ({
+                    id: e.id,
+                    title: e.title,
+                    description: e.description || '',
+                    startDate: e.date || e.startDate || new Date().toISOString().split('T')[0],
+                    endDate: e.date || e.endDate || e.startDate,
+                    startTime: e.time || '00:00',
+                    type: 'EVENT',
+                    completed: false
+                }));
+                setEvents(mapped);
+                localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
             }
         };
 
         loadEvents();
-    }, []);
+    }, [user]);
 
-    // mapFromDb and mapToDb are defined outside the component
-
-    // Save to both localStorage and Supabase
-    const saveEvent = async (event: AgendaEvent, isNew: boolean = true) => {
-        const newEvents = isNew ? [...events, event] : events.map(e => e.id === event.id ? event : e);
+    // Save functions
+    const persistEvent = async (event: AgendaEvent, isDelete = false) => {
+        // Local Update
+        let newEvents = [...events];
+        if (isDelete) {
+            newEvents = newEvents.filter(e => e.id !== event.id);
+        } else {
+            const exists = newEvents.find(e => e.id === event.id);
+            if (exists) {
+                newEvents = newEvents.map(e => e.id === event.id ? event : e);
+            } else {
+                newEvents.push(event);
+            }
+        }
         setEvents(newEvents);
-        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
+        localStorage.setItem('agenda_events_2026_v3', JSON.stringify(newEvents));
 
+        // Supabase Update
         try {
-            const { error } = await supabase.from('agenda_events').upsert(mapAgendaEventToDb(event), { onConflict: 'id' });
-            if (error) throw error;
-            setIsSynced(true);
-            setLastSyncTime(new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+            if (isDelete) {
+                await supabase.from('agenda_events').delete().eq('id', event.id);
+            } else {
+                await supabase.from('agenda_events').upsert({
+                    id: event.id,
+                    user_id: user?.id,
+                    title: event.title,
+                    description: event.description,
+                    start_date: event.startDate,
+                    end_date: event.endDate,
+                    time: event.startTime ? `${event.startTime} - ${event.endTime || ''}` : null,
+                    type: event.type,
+                    completed: event.completed
+                });
+            }
         } catch (err) {
-            console.error('Save to Supabase failed:', err);
-            setIsSynced(false);
+            console.error("Persist error", err);
         }
     };
 
-    const removeEvent = async (id: string) => {
-        const newEvents = events.filter(e => e.id !== id);
-        setEvents(newEvents);
-        localStorage.setItem('agenda_events_2026_v2', JSON.stringify(newEvents));
+    // Navigation Logic
+    const nextPeriod = () => {
+        const newDate = new Date(currentDate);
+        if (view === 'MONTH') newDate.setMonth(newDate.getMonth() + 1);
+        else if (view === 'WEEK') newDate.setDate(newDate.getDate() + 7);
+        else newDate.setDate(newDate.getDate() + 1);
+        setCurrentDate(newDate);
+    };
 
-        try {
-            const { error } = await supabase.from('agenda_events').delete().eq('id', id);
-            if (error) throw error;
-            setIsSynced(true);
-        } catch (err) {
-            console.error('Delete from Supabase failed:', err);
-            setIsSynced(false);
+    const prevPeriod = () => {
+        const newDate = new Date(currentDate);
+        if (view === 'MONTH') newDate.setMonth(newDate.getMonth() - 1);
+        else if (view === 'WEEK') newDate.setDate(newDate.getDate() - 7);
+        else newDate.setDate(newDate.getDate() - 1);
+        setCurrentDate(newDate);
+    };
+
+    const goToToday = () => setCurrentDate(new Date());
+
+    // Helper: Dates for Current View
+    const viewDates = useMemo(() => {
+        const dates: Date[] = [];
+        if (view === 'WEEK') {
+            const curr = new Date(currentDate);
+            const day = curr.getDay(); // 0 (Sun) - 6 (Sat)
+            const first = curr.getDate() - day; // First day is the day of the month - the day of the week
+
+            // Generate Sunday to Saturday
+            for (let i = 0; i < 7; i++) {
+                const next = new Date(curr);
+                next.setDate(first + i);
+                dates.push(next);
+            }
+        } else if (view === 'MONTH') {
+            // Basic Month Logic (Need full grid for proper month view, but simple array here for headers if needed)
+            // For Month View we usually use a different generator logic inside the render
         }
-    };
+        return dates;
+    }, [currentDate, view]);
 
-    // Calendar generation
-    const calendarDays = useMemo(() => {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const lastDay = new Date(year, month + 1, 0);
-        const startOffset = firstDay.getDay();
-        const daysInMonth = lastDay.getDate();
+    // Modal Handlers
+    const openNewEventModal = (start?: Date, hour?: number) => {
+        const d = start || new Date();
+        const dateStr = d.toISOString().split('T')[0];
 
-        const days: { day: number; isCurrentMonth: boolean; dateStr: string }[] = [];
+        // Round to nearest hour if generic open
+        const h = hour !== undefined ? hour : new Date().getHours();
+        const hStr = String(h).padStart(2, '0');
+        const nextHStr = String(h + 1).padStart(2, '0');
 
-        const prevMonth = new Date(year, month, 0);
-        for (let i = startOffset - 1; i >= 0; i--) {
-            const d = prevMonth.getDate() - i;
-            const m = month === 0 ? 12 : month;
-            const y = month === 0 ? year - 1 : year;
-            days.push({ day: d, isCurrentMonth: false, dateStr: `${y} -${String(m).padStart(2, '0')} -${String(d).padStart(2, '0')} ` });
-        }
-
-        for (let i = 1; i <= daysInMonth; i++) {
-            days.push({ day: i, isCurrentMonth: true, dateStr: `${year} -${String(month + 1).padStart(2, '0')} -${String(i).padStart(2, '0')} ` });
-        }
-
-        const remaining = 42 - days.length;
-        for (let i = 1; i <= remaining; i++) {
-            const m = month + 2 > 12 ? 1 : month + 2;
-            const y = month + 2 > 12 ? year + 1 : year;
-            days.push({ day: i, isCurrentMonth: false, dateStr: `${y} -${String(m).padStart(2, '0')} -${String(i).padStart(2, '0')} ` });
-        }
-
-        return days;
-    }, [currentDate]);
-
-    // Check if event spans a date
-    const getEventsForDate = (dateStr: string) => {
-        return events.filter(e => {
-            const start = e.startDate;
-            const end = e.endDate || e.startDate;
-            return dateStr >= start && dateStr <= end;
-        });
-    };
-
-    // Check if date is in drag selection
-    const isInDragSelection = (dateStr: string) => {
-        if (!dragStart) return false;
-        const end = dragEnd || dragStart;
-        const [startStr, endStr] = dragStart <= end ? [dragStart, end] : [end, dragStart];
-        return dateStr >= startStr && dateStr <= endStr;
-    };
-
-    const isToday = (dateStr: string) => {
-        const today = new Date();
-        const todayStr = `${today.getFullYear()} -${String(today.getMonth() + 1).padStart(2, '0')} -${String(today.getDate()).padStart(2, '0')} `;
-        return dateStr === todayStr;
-    };
-
-    const goToPrevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
-    const goToNextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
-
-    // Drag handlers
-    const handleMouseDown = (dateStr: string) => {
-        setIsDragging(true);
-        setDragStart(dateStr);
-        setDragEnd(dateStr);
-    };
-
-    const handleMouseEnter = (dateStr: string) => {
-        if (isDragging) {
-            setDragEnd(dateStr);
-        }
-    };
-
-    const handleMouseUp = () => {
-        if (isDragging && dragStart) {
-            const end = dragEnd || dragStart;
-            const [startStr, endStr] = dragStart <= end ? [dragStart, end] : [end, dragStart];
-            handleAddEvent(startStr, endStr);
-        }
-        setIsDragging(false);
-        setDragStart(null);
-        setDragEnd(null);
-    };
-
-    const handleAddEvent = (startDate?: string, endDate?: string) => {
-        setEditingEventId(null);
+        setSelectedEvent(null);
         setFormTitle('');
         setFormDesc('');
-        setFormStartDate(startDate || '');
-        setFormEndDate(endDate || startDate || '');
-        setFormStartTime('');
-        setFormEndTime('');
-        // setFormType('EVENT');
-        setShowAddModal(true);
+        setFormStartDate(dateStr);
+        setFormEndDate(dateStr);
+        setFormStartTime(`${hStr}:00`);
+        setFormEndTime(`${nextHStr}:00`);
+        setFormType('EVENT');
+        setShowModal(true);
     };
 
-    const handleEditEvent = (event: AgendaEvent) => {
-        setEditingEventId(event.id);
+    const openEditModal = (e: React.MouseEvent, event: AgendaEvent) => {
+        e.stopPropagation();
+        setSelectedEvent(event);
         setFormTitle(event.title);
-        setFormDesc(event.description || '');
+        setFormDesc(event.description);
         setFormStartDate(event.startDate);
-        setFormEndDate(event.endDate || event.startDate);
-
-        if (event.time) {
-            const parts = event.time.split('-');
-            setFormStartTime(parts[0]?.trim() || '');
-            setFormEndTime(parts[1]?.trim() || '');
-        } else {
-            setFormStartTime('');
-            setFormEndTime('');
-        }
-        setShowAddModal(true);
+        setFormEndDate(event.endDate);
+        setFormStartTime(event.startTime || '');
+        setFormEndTime(event.endTime || '');
+        setFormType(event.type);
+        setShowModal(true);
     };
 
-    const handleSaveEvent = async () => {
-        if (!formTitle || !formStartDate) return;
+    const handleSave = () => {
+        if (!formTitle) return;
 
-        // Time logic
-        let finalTimeStr = '';
-        if (formStartTime) {
-            if (!formEndTime) {
-                // Default 1h duration
-                const [h, m] = formStartTime.split(':').map(Number);
-                const endH = (h + 1) % 24;
-                const endMStr = String(m).padStart(2, '0');
-                const endHStr = String(endH).padStart(2, '0');
-                finalTimeStr = `${formStartTime} - ${endHStr}:${endMStr} `;
-            } else {
-                finalTimeStr = `${formStartTime} - ${formEndTime} `;
-            }
-        }
-
-        if (editingEventId) {
-            // Update existing
-            const { error } = await supabase
-                .from('agenda_events')
-                .update({
-                    title: formTitle,
-                    description: formDesc,
-                    start_date: formStartDate,
-                    end_date: formEndDate || formStartDate,
-                    time: finalTimeStr,
-                })
-                .eq('id', editingEventId);
-
-            if (error) {
-                console.error('Error updating event:', error);
-                return;
-            }
-
-            setEvents(prev => prev.map(ev => ev.id === editingEventId ? {
-                ...ev,
-                title: formTitle,
-                description: formDesc,
-                startDate: formStartDate,
-                endDate: formEndDate || formStartDate,
-                time: finalTimeStr
-            } : ev));
-        } else {
-            // Create new
-            const newEvent: AgendaEvent = {
-                id: Date.now().toString(),
-                title: formTitle,
-                description: formDesc,
-                startDate: formStartDate,
-                endDate: formEndDate || formStartDate,
-                time: finalTimeStr,
-                type: 'EVENT', // Hardcoded
-                completed: false,
-            };
-
-            const { data, error } = await supabase
-                .from('agenda_events')
-                .insert({
-                    id: newEvent.id, // Explicit ID for local sync
-                    user_id: user.id,
-                    title: newEvent.title,
-                    description: newEvent.description,
-                    start_date: newEvent.startDate,
-                    end_date: newEvent.endDate,
-                    time: newEvent.time,
-                    type: newEvent.type,
-                    completed: newEvent.completed
-                })
-                .select()
-                .single();
-
-            if (error) {
-                console.error('Error saving event:', error);
-                // Fallback local...
-            }
-
-            setEvents(prev => [...prev, newEvent]);
-        }
-        setShowAddModal(false);
-    };
-
-    const toggleComplete = async (id: string) => {
-        const event = events.find(e => e.id === id);
-        if (event) {
-            const updated = { ...event, completed: !event.completed };
-            await saveEvent(updated, false);
-        }
-    };
-
-    // AI Analysis
-    const aiAnalysis = useMemo(() => {
-        const monthStart = `${currentDate.getFullYear()} -${String(currentDate.getMonth() + 1).padStart(2, '0')}-01`;
-        const monthEnd = `${currentDate.getFullYear()} -${String(currentDate.getMonth() + 1).padStart(2, '0')} -31`;
-
-        const monthEvents = events.filter(e => e.startDate >= monthStart && e.startDate <= monthEnd);
-
-        const countByType = {
-            MEETING: monthEvents.filter(e => e.type === 'MEETING').length,
-            TASK: monthEvents.filter(e => e.type === 'TASK').length,
-            REMINDER: monthEvents.filter(e => e.type === 'REMINDER').length,
-            EVENT: monthEvents.filter(e => e.type === 'EVENT').length,
+        const newEvent: AgendaEvent = {
+            id: selectedEvent ? selectedEvent.id : crypto.randomUUID(),
+            title: formTitle,
+            description: formDesc,
+            startDate: formStartDate,
+            endDate: formEndDate,
+            startTime: formStartTime,
+            endTime: formEndTime,
+            type: formType,
+            completed: selectedEvent ? selectedEvent.completed : false
         };
 
-        // Days with events count
-        const eventsByDay: Record<string, number> = {};
-        monthEvents.forEach(e => {
-            const days = getDaysBetween(e.startDate, e.endDate);
-            days.forEach(d => {
-                eventsByDay[d] = (eventsByDay[d] || 0) + 1;
-            });
-        });
+        persistEvent(newEvent);
+        setShowModal(false);
+    };
 
-        const overloadedDays = Object.entries(eventsByDay).filter(([_, count]) => count >= 3).map(([day]) => day);
-        const busiestDay = Object.entries(eventsByDay).sort((a, b) => b[1] - a[1])[0];
-
-        const totalEvents = monthEvents.length;
-        const completedEvents = monthEvents.filter(e => e.completed).length;
-        const completionRate = totalEvents > 0 ? Math.round((completedEvents / totalEvents) * 100) : 0;
-
-        // Check for consecutive busy days
-        const sortedBusyDays = overloadedDays.sort();
-        let consecutiveBusy = 0;
-        for (let i = 1; i < sortedBusyDays.length; i++) {
-            const prev = new Date(sortedBusyDays[i - 1]);
-            const curr = new Date(sortedBusyDays[i]);
-            const diff = (curr.getTime() - prev.getTime()) / (1000 * 60 * 60 * 24);
-            if (diff === 1) consecutiveBusy++;
+    const handleDelete = () => {
+        if (selectedEvent) {
+            persistEvent(selectedEvent, true);
+            setShowModal(false);
         }
+    };
 
-        const recommendations: string[] = [];
-
-        if (overloadedDays.length > 0) {
-            recommendations.push(`⚠️ Você tem ${overloadedDays.length} dia(s) com 3 + eventos.Considere redistribuir.`);
-        }
-        if (countByType.MEETING > countByType.TASK * 2) {
-            recommendations.push(`📊 Muitas reuniões em relação a tarefas.Reserve tempo para execução.`);
-        }
-        if (consecutiveBusy >= 3) {
-            recommendations.push(`🔥 ${consecutiveBusy + 1} dias consecutivos sobrecarregados.Planeje pausas.`);
-        }
-        if (totalEvents === 0) {
-            recommendations.push(`📅 Nenhum evento este mês.Comece a planejar!`);
-        }
-        if (completionRate < 50 && completedEvents > 0) {
-            recommendations.push(`✅ Taxa de conclusão em ${completionRate}%.Foque em finalizar pendências.`);
-        }
-        if (totalEvents > 20) {
-            recommendations.push(`📈 Mês intenso com ${totalEvents} eventos.Priorize o essencial.`);
-        }
-
-        return {
-            totalEvents,
-            completedEvents,
-            completionRate,
-            countByType,
-            overloadedDays,
-            busiestDay: busiestDay ? { day: busiestDay[0], count: busiestDay[1] } : null,
-            recommendations: recommendations.length > 0 ? recommendations : ['✨ Agenda equilibrada! Continue assim.'],
-        };
-    }, [events, currentDate]);
-
-
-
-    return (
-        <div
-            className="min-h-screen bg-[#020202] py-8 px-4 md:px-8"
-            onMouseUp={handleMouseUp}
-            onMouseLeave={() => { if (isDragging) handleMouseUp(); }}
-        >
-            <div className="max-w-6xl mx-auto">
-                {/* Back Button */}
-                <button onClick={onBack} className="flex items-center gap-2 text-text-muted hover:text-white transition-colors mb-8 group">
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-sm uppercase tracking-wider">Retornar ao Dashboard</span>
-                </button>
-
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8 border-b border-white/10 pb-6">
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-xl bg-orange-500/10 border border-orange-500/20 flex items-center justify-center">
-                            <Calendar className="w-7 h-7 text-orange-400" />
-                        </div>
-                        <div>
-                            <h1 className="text-3xl font-bold text-white uppercase tracking-wider">Agenda 2026</h1>
-                            <div className="flex items-center gap-3 mt-1">
-                                <p className="text-sm text-text-muted">Arraste nos dias para eventos de múltiplos dias</p>
-                                <div className={`flex items - center gap - 1.5 px - 2 py - 0.5 rounded - full text - xs ${isSynced === null ? 'bg-gray-500/20 text-gray-400' :
-                                    isSynced ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
-                                    } `}>
-                                    {isSynced === null ? (
-                                        <><span className="animate-pulse">●</span> Carregando...</>
-                                    ) : isSynced ? (
-                                        <><Cloud className="w-3 h-3" /> Sincronizado {lastSyncTime && `às ${lastSyncTime} `}</>
-                                    ) : (
-                                        <><CloudOff className="w-3 h-3" /> Offline (salvando localmente)</>
-                                    )}
+    // Sub-components
+    const WeeklyGrid = () => {
+        return (
+            <div className="flex flex-col h-full overflow-hidden bg-[#121212]">
+                {/* Header Row: Days */}
+                <div className="flex border-b border-white/10 ml-14">
+                    {viewDates.map((date, i) => {
+                        const isToday = date.toDateString() === new Date().toDateString();
+                        return (
+                            <div key={i} className="flex-1 py-3 text-center border-l border-white/5">
+                                <span className={`text-xs font-semibold uppercase ${isToday ? 'text-blue-400' : 'text-gray-400'}`}>
+                                    {WEEKDAYS[date.getDay()]}
+                                </span>
+                                <div className={`w-8 h-8 mx-auto mt-1 flex items-center justify-center rounded-full text-xl ${isToday ? 'bg-blue-600 text-white' : 'text-gray-200'}`}>
+                                    {date.getDate()}
                                 </div>
                             </div>
+                        );
+                    })}
+                </div>
+
+                {/* Time Grid */}
+                <div className="flex-1 overflow-y-auto relative custom-scrollbar">
+                    {/* Time Columns */}
+                    <div className="flex min-h-[1440px]"> {/* 24h * 60px/h */}
+
+                        {/* Time Labels */}
+                        <div className="w-14 flex-shrink-0 flex flex-col items-end pr-2 text-xs text-gray-500 bg-[#0A0A0A] border-r border-white/10 pt-2 sticky left-0 z-10">
+                            {Array.from({ length: 24 }).map((_, i) => (
+                                <div key={i} className="h-[60px] relative -top-3">
+                                    {i === 0 ? '' : `${i}:00`}
+                                </div>
+                            ))}
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-3">
-                        <button
-                            onClick={() => setShowAIPanel(true)}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-purple-500/20 to-blue-500/20 border border-purple-500/30 text-purple-400 rounded-lg hover:bg-purple-500/30 transition-all font-medium"
-                        >
-                            <Sparkles className="w-5 h-5" />
-                            Análise IA
-                        </button>
-                        <button
-                            onClick={() => handleAddEvent()}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition-all font-medium"
-                        >
-                            <Plus className="w-5 h-5" />
-                            Novo Evento
-                        </button>
-                    </div>
-                </div>
-
-                {/* Calendar Navigation */}
-                <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-3">
-                        <button onClick={goToPrevMonth} className="p-2 rounded-lg hover:bg-white/5 text-text-muted hover:text-white transition-colors">
-                            <ChevronLeft className="w-5 h-5" />
-                        </button>
-                        <h2 className="text-xl font-semibold text-white min-w-[200px] text-center">
-                            {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-                        </h2>
-                        <button onClick={goToNextMonth} className="p-2 rounded-lg hover:bg-white/5 text-text-muted hover:text-white transition-colors">
-                            <ChevronRight className="w-5 h-5" />
-                        </button>
-                    </div>
-                    <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1.5 text-sm text-text-muted hover:text-white border border-white/10 rounded-lg hover:bg-white/5 transition-colors">
-                        Hoje
-                    </button>
-                </div>
-
-                {/* Calendar Grid */}
-                <div className="bg-[#0A0A0A] border border-white/10 rounded-xl overflow-hidden select-none">
-                    {/* Weekday Headers */}
-                    <div className="grid grid-cols-7 border-b border-white/10">
-                        {WEEKDAYS.map(day => (
-                            <div key={day} className="py-3 text-center text-xs font-medium text-text-muted uppercase tracking-wider">
-                                {day}
-                            </div>
-                        ))}
-                    </div>
-
-                    {/* Days Grid */}
-                    <div className="grid grid-cols-7">
-                        {calendarDays.map((day, idx) => {
-                            const dayEvents = getEventsForDate(day.dateStr);
-                            const inSelection = isInDragSelection(day.dateStr);
+                        {/* Day Columns */}
+                        {viewDates.map((date, dayIdx) => {
+                            const dateStr = date.toISOString().split('T')[0];
+                            const dayEvents = events.filter(e =>
+                                e.startDate <= dateStr && e.endDate >= dateStr
+                            );
 
                             return (
                                 <div
-                                    key={idx}
-                                    onMouseDown={() => handleMouseDown(day.dateStr)}
-                                    onMouseEnter={() => handleMouseEnter(day.dateStr)}
-                                    className={`min - h - [100px] p - 2 border - b border - r border - white / 5 cursor - pointer transition - colors ${!day.isCurrentMonth ? 'opacity-30' : ''
-                                        } ${inSelection ? 'bg-orange-500/20 border-orange-500/40' : 'hover:bg-white/[0.02]'} `}
+                                    key={dayIdx}
+                                    className="flex-1 border-l border-white/5 relative group hover:bg-white/[0.01]"
+                                    onClick={(e) => {
+                                        // Calculate hour clicked
+                                        const rect = e.currentTarget.getBoundingClientRect();
+                                        const y = e.clientY - rect.top + e.currentTarget.scrollTop; // approx
+                                        const hour = Math.floor(y / 60);
+                                        openNewEventModal(date, hour);
+                                    }}
                                 >
-                                    <div className={`w - 7 h - 7 flex items - center justify - center text - sm mb - 1 rounded - full ${isToday(day.dateStr) ? 'bg-orange-500 text-white font-bold' : 'text-text-secondary'
-                                        } `}>
-                                        {day.day}
-                                    </div>
+                                    {/* Horizontal Lines for Hours */}
+                                    {Array.from({ length: 24 }).map((_, h) => (
+                                        <div key={h} className="absolute w-full h-[1px] bg-white/[0.03]" style={{ top: `${h * 60}px` }} />
+                                    ))}
 
-                                    <div className="space-y-1">
-                                        {dayEvents.slice(0, 3).map(event => {
-                                            const isMultiDay = event.startDate !== event.endDate;
-                                            const isStart = event.startDate === day.dateStr;
-                                            const isEnd = event.endDate === day.dateStr;
+                                    {/* Events */}
+                                    {dayEvents.map(event => {
+                                        // Calculate position
+                                        // Simple logic: if all-day or multi-day, show at top (todo better handling)
+                                        // For now, if it has time, position it.
 
-                                            return (
-                                                <div
-                                                    key={event.id}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        handleEditEvent(event);
-                                                    }}
-                                                    className={`text - [11px] px - 2 py - 0.5 truncate ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} ${isMultiDay
-                                                        ? `${isStart ? 'rounded-l' : 'rounded-none -ml-2'} ${isEnd ? 'rounded-r' : 'rounded-none -mr-2'}`
-                                                        : 'rounded'
-                                                        } flex justify - between items - center gap - 2 cursor - pointer hover: brightness - 110 transition - all border border - transparent hover: border - white / 20`}
-                                                >
-                                                    <span className="truncate flex-1 font-semibold tracking-tight">{(isStart || !isMultiDay) && event.title}</span>
-                                                    {(isStart || !isMultiDay) && event.time && (
-                                                        <span className="text-[10px] opacity-100 font-bold font-mono whitespace-nowrap bg-black/20 px-1 rounded-sm">
-                                                            {event.time.split('-')[0].trim()}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            );
-                                        })}
-                                        {dayEvents.length > 3 && (
-                                            <div className="text-[10px] text-text-muted px-1.5">+{dayEvents.length - 3} mais</div>
-                                        )}
-                                    </div>
+                                        let top = 0;
+                                        let height = 58; // default 1h approx
+
+                                        if (event.startTime) {
+                                            const [h, m] = event.startTime.split(':').map(Number);
+                                            top = (h * 60) + m;
+
+                                            if (event.endTime) {
+                                                const [eh, em] = event.endTime.split(':').map(Number);
+                                                const endMin = (eh * 60) + em;
+                                                height = Math.max(20, endMin - top);
+                                            }
+                                        }
+
+                                        const bgColor = EVENT_COLORS[event.type].bg;
+
+                                        return (
+                                            <div
+                                                key={event.id}
+                                                onClick={(e) => openEditModal(e, event)}
+                                                className={`absolute left-0.5 right-1 rounded px-2 py-1 text-xs cursor-pointer overflow-hidden border-l-2 border-white/30 hover:brightness-110 shadow-lg ${bgColor}`}
+                                                style={{ top: `${top}px`, height: `${height}px` }}
+                                            >
+                                                <div className="font-semibold truncate">{event.title}</div>
+                                                <div className="truncate opacity-80">{event.startTime} - {event.endTime}</div>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             );
                         })}
                     </div>
                 </div>
+            </div>
+        );
+    };
 
-                {/* Upcoming Events List */}
-                <div className="mt-8">
-                    <h3 className="text-lg font-semibold text-white mb-4">Próximos Eventos</h3>
-                    <div className="space-y-2">
-                        {/* Filter next events (ONLY THIS WEEK) */}
-                        {events
-                            .filter(e => {
-                                const eventDate = new Date(e.startDate);
-                                const now = new Date();
-                                // Reset hours to compare dates only
-                                now.setHours(0, 0, 0, 0);
+    const MonthGrid = () => {
+        // Simple Month View Logic
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth();
+        const firstDay = new Date(year, month, 1);
+        const lastDay = new Date(year, month + 1, 0);
+        const startDay = firstDay.getDay(); // 0-6
+        const daysInMonth = lastDay.getDate();
 
-                                // Calculate end of week (Saturday)
-                                const endOfWeek = new Date(now);
-                                endOfWeek.setDate(now.getDate() + (6 - now.getDay())); // Saturday is 6
+        // Blanks before
+        const blanks = Array.from({ length: startDay });
 
-                                return eventDate >= now && eventDate <= endOfWeek && !e.completed;
-                            })
-                            .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime())
-                            .slice(0, 5)
-                            .map(event => (
-                                <div key={event.id} className={`flex items - center gap - 4 p - 4 bg - [#0A0A0A] border border - white / 10 rounded - lg group ${event.completed ? 'opacity-50' : ''} `}>
-                                    <button onClick={() => toggleComplete(event.id)} className={`transition - colors ${event.completed ? 'text-green-500' : 'text-text-muted hover:text-white'} `}>
-                                        {event.completed ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-                                    </button>
+        // Days
+        const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-                                    <div className="flex-1">
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className={`text - xs px - 2 py - 0.5 rounded - full ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].text} `}>
-                                                {TYPE_LABELS[event.type]}
-                                            </span>
-                                            <span className="text-xs text-text-muted">
-                                                {event.startDate.split('-').reverse().join('/')}
-                                                {event.endDate !== event.startDate && ` - ${event.endDate.split('-').reverse().join('/')} `}
-                                                {event.time && ` às ${event.time} `}
-                                            </span>
+        return (
+            <div className="flex-1 bg-[#121212] overflow-y-auto p-4">
+                <div className="grid grid-cols-7 gap-1 h-full min-h-[600px]">
+                    {WEEKDAYS.map(d => <div key={d} className="text-center text-sm text-gray-500 py-2">{d}</div>)}
+
+                    {blanks.map((_, i) => <div key={`blank-${i}`} className="bg-[#0A0A0A]" />)}
+
+                    {monthDays.map(day => {
+                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                        const dayEvents = events.filter(e => e.startDate <= dateStr && e.endDate >= dateStr);
+                        const isToday = new Date().toISOString().split('T')[0] === dateStr;
+
+                        return (
+                            <div
+                                key={day}
+                                className={`min-h-[100px] bg-[#0A0A0A] border border-white/5 p-2 transition hover:bg-white/[0.03] cursor-pointer ${isToday ? 'bg-blue-900/10 border-blue-500/30' : ''}`}
+                                onClick={() => {
+                                    setCurrentDate(new Date(year, month, day));
+                                    setView('WEEK'); // Drill down
+                                }}
+                            >
+                                <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-400' : 'text-gray-300'}`}>{day}</div>
+                                <div className="space-y-1">
+                                    {dayEvents.slice(0, 4).map(ev => (
+                                        <div key={ev.id} className={`text-[10px] px-1.5 py-0.5 rounded truncate ${EVENT_COLORS[ev.type].bg} text-white`}>
+                                            {ev.title}
                                         </div>
-                                        <h4 className={`font - medium mt - 1 ${event.completed ? 'line-through text-text-muted' : 'text-white'} `}>
-                                            {event.title}
-                                        </h4>
-                                        {event.description && <p className="text-sm text-text-muted mt-0.5">{event.description}</p>}
-                                    </div>
-
-                                    <button onClick={() => removeEvent(event.id)} className="opacity-0 group-hover:opacity-100 p-2 text-text-muted hover:text-red-500 transition-all">
-                                        <Trash2 className="w-4 h-4" />
-                                    </button>
+                                    ))}
+                                    {dayEvents.length > 4 && <div className="text-[10px] text-gray-500">+{dayEvents.length - 4} mais</div>}
                                 </div>
-                            ))}
-                        {events.length === 0 && (
-                            <div className="text-center py-12 text-text-muted">
-                                <Calendar className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                                <p>Nenhum evento cadastrado</p>
-                                <p className="text-sm mt-1">Clique e arraste nos dias para criar eventos</p>
                             </div>
-                        )}
+                        );
+                    })}
+                </div>
+            </div>
+        );
+    };
+
+    return (
+        <div className="flex h-screen bg-black text-white overflow-hidden">
+            {/* Sidebar */}
+            <div className={`w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col transition-all duration-300 ${sidebarOpen ? '' : '-ml-64'}`}>
+                {/* Header Logo Area */}
+                <div className="p-4 flex items-center gap-2 border-b border-white/5">
+                    <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full">
+                        <ArrowLeft className="w-5 h-5 text-gray-400" />
+                    </button>
+                    <span className="font-bold text-lg tracking-tight">Agenda 2026</span>
+                </div>
+
+                {/* Create Button */}
+                <div className="p-4">
+                    <button
+                        onClick={() => openNewEventModal()}
+                        className="w-full flex items-center justify-center gap-3 bg-[#1A73E8] hover:bg-[#1557B0] text-white py-3 px-4 rounded-full shadow-lg transition-all"
+                    >
+                        <Plus className="w-6 h-6" />
+                        <span className="font-medium">Criar</span>
+                    </button>
+                </div>
+
+                {/* Mini Calendar (Simplified) */}
+                <div className="px-4 py-2">
+                    <div className="flex justify-between items-center mb-4">
+                        <span className="text-sm font-medium text-gray-300">{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
+                    </div>
+                    {/* Placeholder for mini-cal visual only for speed */}
+                    <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500">
+                        {WEEKDAYS.map(d => <div key={d}>{d[0]}</div>)}
+                        {/* Mock grid - just visual rhythm */}
+                        {Array.from({ length: 35 }).map((_, i) => (
+                            <div key={i} className={`h-6 w-6 flex items-center justify-center rounded-full ${i === 15 ? 'bg-blue-600 text-white' : 'hover:bg-white/10 cursor-pointer'}`}>
+                                {Math.max(1, (i - 4) % 31)}
+                            </div>
+                        ))}
                     </div>
                 </div>
 
-                {/* Add/Edit Event Modal */}
-                {showAddModal && (
-                    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm w-screen h-screen top-0 left-0">
-                        <div className="w-full max-w-md bg-[#111111] border border-white/10 rounded-2xl p-6 shadow-2xl">
-                            <h2 className="text-xl font-bold text-white mb-6">
-                                {editingEventId ? 'Editar Evento' : (formStartDate !== formEndDate ? 'Novo Evento (Múltiplos Dias)' : 'Novo Evento')}
-                            </h2>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-xs uppercase text-text-muted mb-1">Título</label>
-                                    <input
-                                        type="text"
-                                        value={formTitle}
-                                        onChange={(e) => setFormTitle(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
-                                        placeholder="Reunião de Planejamento"
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs uppercase text-text-muted mb-1">Data Início</label>
-                                        <input
-                                            type="date"
-                                            value={formStartDate}
-                                            onChange={(e) => setFormStartDate(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs uppercase text-text-muted mb-1">Data Fim</label>
-                                        <input
-                                            type="date"
-                                            value={formEndDate}
-                                            onChange={(e) => setFormEndDate(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-xs uppercase text-text-muted mb-1">Início</label>
-                                        <input
-                                            type="time"
-                                            value={formStartTime}
-                                            onChange={(e) => setFormStartTime(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs uppercase text-text-muted mb-1">Fim (Opcional)</label>
-                                        <input
-                                            type="time"
-                                            value={formEndTime}
-                                            onChange={(e) => setFormEndTime(e.target.value)}
-                                            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors"
-                                            placeholder="Auto 1h"
-                                        />
-                                    </div>
-                                </div>
-
-                                {/* Type selector removed - always EVENT */}
-
-                                <div>
-                                    <label className="block text-xs uppercase text-text-muted mb-1">Descrição</label>
-                                    <textarea
-                                        value={formDesc}
-                                        onChange={(e) => setFormDesc(e.target.value)}
-                                        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-orange-500 transition-colors h-20 resize-none"
-                                        placeholder="Detalhes do evento..."
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="flex gap-3 mt-6">
-                                <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2 rounded-lg bg-white/5 text-text-secondary hover:bg-white/10 transition-colors">
-                                    Cancelar
-                                </button>
-                                <button onClick={handleSaveEvent} className="flex-1 px-4 py-2 rounded-lg bg-orange-500 text-white font-medium hover:bg-orange-600 transition-colors">
-                                    Salvar
-                                </button>
-                            </div>
+                {/* My Calendars Filter */}
+                <div className="p-4 mt-4">
+                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wilder mb-3">Minhas Agendas</div>
+                    <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded bg-[#039BE5] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-black/50" /></div>
+                            <span className="text-sm">Reuniões</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded bg-[#33B679]" />
+                            <span className="text-sm">Tarefas</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <div className="w-4 h-4 rounded bg-[#F4511E]" />
+                            <span className="text-sm">Lembretes</span>
                         </div>
                     </div>
-                )}
+                </div>
+            </div>
 
-                {/* AI Analysis Panel */}
-                {showAIPanel && (
-                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-                        <div className="w-full max-w-lg bg-[#111111] border border-white/10 rounded-2xl p-6 shadow-2xl max-h-[80vh] overflow-y-auto">
-                            <div className="flex items-center justify-between mb-6">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500/20 to-blue-500/20 border border-purple-500/30 flex items-center justify-center">
-                                        <Sparkles className="w-5 h-5 text-purple-400" />
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold text-white">Análise de IA</h2>
-                                        <p className="text-xs text-text-muted">{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setShowAIPanel(false)} className="p-2 text-text-muted hover:text-white transition-colors">
-                                    <X className="w-5 h-5" />
-                                </button>
+            {/* Main Content */}
+            <div className="flex-1 flex flex-col min-w-0">
+                {/* Top Bar */}
+                <header className="h-16 flex items-center justify-between px-4 border-b border-white/10 bg-[#0A0A0A]">
+                    <div className="flex items-center gap-4">
+                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/10 rounded-full">
+                            <Menu className="w-5 h-5 text-gray-400" />
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <button onClick={goToToday} className="px-3 py-1.5 border border-white/20 rounded hover:bg-white/5 text-sm font-medium">Hoje</button>
+                            <div className="flex items-center">
+                                <button onClick={prevPeriod} className="p-1.5 hover:bg-white/10 rounded-full"><ChevronLeft className="w-4 h-4" /></button>
+                                <button onClick={nextPeriod} className="p-1.5 hover:bg-white/10 rounded-full"><ChevronRight className="w-4 h-4" /></button>
                             </div>
+                            <h2 className="text-xl font-medium ml-2">
+                                {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                            </h2>
+                        </div>
+                    </div>
 
-                            {/* Stats Grid */}
-                            <div className="grid grid-cols-2 gap-3 mb-6">
-                                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                                    <div className="flex items-center gap-2 text-text-muted mb-1">
-                                        <Calendar className="w-4 h-4" />
-                                        <span className="text-xs uppercase">Total de Eventos</span>
-                                    </div>
-                                    <div className="text-2xl font-bold text-white">{aiAnalysis.totalEvents}</div>
-                                </div>
-                                <div className="bg-white/5 border border-white/10 rounded-xl p-4">
-                                    <div className="flex items-center gap-2 text-text-muted mb-1">
-                                        <CheckCircle2 className="w-4 h-4" />
-                                        <span className="text-xs uppercase">Concluídos</span>
-                                    </div>
-                                    <div className="text-2xl font-bold text-green-400">{aiAnalysis.completionRate}%</div>
-                                </div>
-                            </div>
-
-                            {/* Events by Type */}
-                            <div className="bg-white/5 border border-white/10 rounded-xl p-4 mb-6">
-                                <h3 className="text-sm font-medium text-white mb-3 flex items-center gap-2">
-                                    <ListTodo className="w-4 h-4" />
-                                    Eventos por Tipo
-                                </h3>
-                                <div className="space-y-2">
-                                    {Object.entries(aiAnalysis.countByType).map(([type, count]) => (
-                                        <div key={type} className="flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <div className={`w - 3 h - 3 rounded - full ${EVENT_COLORS[type].solid} `} />
-                                                <span className="text-sm text-text-secondary">{TYPE_LABELS[type]}</span>
-                                            </div>
-                                            <span className="text-sm font-medium text-white">{count}</span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Busiest Day */}
-                            {aiAnalysis.busiestDay && (
-                                <div className="bg-orange-500/10 border border-orange-500/20 rounded-xl p-4 mb-6">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <TrendingUp className="w-4 h-4 text-orange-400" />
-                                        <span className="text-sm font-medium text-orange-400">Dia Mais Ocupado</span>
-                                    </div>
-                                    <p className="text-white">
-                                        {aiAnalysis.busiestDay.day.split('-').reverse().join('/')} com {aiAnalysis.busiestDay.count} evento(s)
-                                    </p>
-                                </div>
-                            )}
-
-                            {/* Overloaded Days Warning */}
-                            {aiAnalysis.overloadedDays.length > 0 && (
-                                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <AlertTriangle className="w-4 h-4 text-red-400" />
-                                        <span className="text-sm font-medium text-red-400">Dias Sobrecarregados</span>
-                                    </div>
-                                    <p className="text-sm text-text-secondary">
-                                        {aiAnalysis.overloadedDays.length} dia(s) com 3+ eventos:
-                                    </p>
-                                    <div className="flex flex-wrap gap-1 mt-2">
-                                        {aiAnalysis.overloadedDays.slice(0, 5).map(day => (
-                                            <span key={day} className="text-xs px-2 py-0.5 bg-red-500/20 text-red-400 rounded">
-                                                {day.split('-')[2]}/{day.split('-')[1]}
-                                            </span>
-                                        ))}
-                                        {aiAnalysis.overloadedDays.length > 5 && (
-                                            <span className="text-xs text-text-muted">+{aiAnalysis.overloadedDays.length - 5} mais</span>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Recommendations */}
-                            <div className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border border-purple-500/20 rounded-xl p-4">
-                                <h3 className="text-sm font-medium text-purple-400 mb-3 flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4" />
-                                    Recomendações
-                                </h3>
-                                <ul className="space-y-2">
-                                    {aiAnalysis.recommendations.map((rec, idx) => (
-                                        <li key={idx} className="text-sm text-text-secondary">{rec}</li>
-                                    ))}
-                                </ul>
-                            </div>
-
+                    <div className="flex items-center gap-3">
+                        <div className="flex bg-[#1E1E1E] rounded-md p-1 border border-white/10">
                             <button
-                                onClick={() => setShowAIPanel(false)}
-                                className="w-full mt-6 px-4 py-2.5 rounded-lg bg-white/5 text-text-secondary hover:bg-white/10 transition-colors"
+                                onClick={() => setView('MONTH')}
+                                className={`px-3 py-1 rounded text-sm ${view === 'MONTH' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
                             >
-                                Fechar
+                                Mês
+                            </button>
+                            <button
+                                onClick={() => setView('WEEK')}
+                                className={`px-3 py-1 rounded text-sm ${view === 'WEEK' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Semana
                             </button>
                         </div>
+                        <button className="p-2 hover:bg-white/10 rounded-full"><Search className="w-5 h-5 text-gray-400" /></button>
+                        <button className="p-2 hover:bg-white/10 rounded-full"><Settings className="w-5 h-5 text-gray-400" /></button>
                     </div>
-                )}
+                </header>
+
+                {/* View Area */}
+                {view === 'WEEK' ? <WeeklyGrid /> : <MonthGrid />}
             </div>
-        </div >
+
+            {/* Event Modal */}
+            {showModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+                    <div className="bg-[#1E1E1E] w-[500px] rounded-xl shadow-2xl border border-white/10 overflow-hidden" onClick={e => e.stopPropagation()}>
+                        <div className="bg-[#252525] px-4 py-3 flex justify-between items-center border-b border-white/5">
+                            <h3 className="text-lg font-medium text-gray-200">
+                                {selectedEvent ? 'Editar Evento' : 'Novo Evento'}
+                            </h3>
+                            <div className="flex items-center gap-2">
+                                {selectedEvent && (
+                                    <button onClick={handleDelete} className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-500 rounded-full transition"><Trash2 className="w-4 h-4" /></button>
+                                )}
+                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/10 text-gray-400 hover:text-white rounded-full"><X className="w-4 h-4" /></button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-4">
+                            <input
+                                type="text"
+                                placeholder="Adicionar título"
+                                value={formTitle}
+                                onChange={e => setFormTitle(e.target.value)}
+                                className="w-full bg-transparent text-2xl border-b-2 border-transparent focus:border-blue-500 outline-none pb-2 text-white placeholder-gray-500"
+                                autoFocus
+                            />
+
+                            <div className="flex items-center gap-4 text-gray-300">
+                                <div className="p-2 rounded bg-white/5"><AlignLeft className="w-5 h-5" /></div>
+                                <div className="flex-1 text-sm bg-white/5 rounded px-3 py-2 text-gray-400">
+                                    {formType}
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-gray-300">
+                                <div className="p-2 rounded bg-white/5"><Clock className="w-5 h-5" /></div>
+                                <div className="flex-1 flex gap-2">
+                                    <input
+                                        type="date"
+                                        value={formStartDate}
+                                        onChange={e => setFormStartDate(e.target.value)}
+                                        className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <input
+                                        type="time"
+                                        value={formStartTime}
+                                        onChange={e => setFormStartTime(e.target.value)}
+                                        className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                    <span>-</span>
+                                    <input
+                                        type="time"
+                                        value={formEndTime}
+                                        onChange={e => setFormEndTime(e.target.value)}
+                                        className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex gap-4">
+                                <div className="p-2 rounded bg-white/5 h-fit"><AlignLeft className="w-5 h-5 text-transparent" /></div> {/* Spacer */}
+                                <textarea
+                                    placeholder="Adicionar descrição"
+                                    value={formDesc}
+                                    onChange={e => setFormDesc(e.target.value)}
+                                    className="w-full bg-white/5 rounded-lg p-3 min-h-[100px] text-sm text-white placeholder-gray-500 outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                                />
+                            </div>
+
+                            <div className="flex gap-2 justify-end pt-4">
+                                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 rounded">Cancelar</button>
+                                <button onClick={handleSave} className="px-6 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded shadow-lg">Salvar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
     );
 };

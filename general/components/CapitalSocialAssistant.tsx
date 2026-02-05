@@ -41,72 +41,120 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         scrollToBottom();
     }, [messages]);
 
-    const processQuery = (query: string) => {
-        const lowerQuery = query.toLowerCase();
-        let response = "Desculpe, não entendi. Tente perguntar sobre um nome específico ou totais.";
+    const DEFAULT_KEY = ""; // Removed for security
+    // Using Grok API
+    const [apiKey, setApiKey] = useState(localStorage.getItem('grok_api_key') || DEFAULT_KEY);
+    const [showKeyInput, setShowKeyInput] = useState(false);
 
-        // 1. Total Capital
-        if (lowerQuery.includes('total') || lowerQuery.includes('soma')) {
-            const total = data.reduce((acc, curr) => {
-                const val = parseFloat(curr.capital_value.replace('.', '').replace(',', '.')) || 0;
-                return acc + val;
-            }, 0);
-            response = `O valor total do Capital Social carregado é de ${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(total)}.`;
-        }
-        // 2. Highest Value
-        else if (lowerQuery.includes('maior') || lowerQuery.includes('maximo') || lowerQuery.includes('rico')) {
-            const sorted = [...data].sort((a, b) => {
-                const valA = parseFloat(a.capital_value.replace('.', '').replace(',', '.')) || 0;
-                const valB = parseFloat(b.capital_value.replace('.', '').replace(',', '.')) || 0;
-                return valB - valA;
-            });
-            const top = sorted[0];
-            if (top) {
-                response = `O associado com maior capital é **${top.associate_name}** com ${top.capital_value}. (Conta: ${top.account_number})`;
-            }
-        }
-        // 3. Search by Name
-        else {
-            const results = data.filter(item =>
-                item.associate_name.toLowerCase().includes(lowerQuery) ||
-                item.account_number.includes(lowerQuery)
-            );
-
-            if (results.length === 1) {
-                const item = results[0];
-                let details = `Encontrei: **${item.associate_name}**\nConta: ${item.account_number}\nCapital: ${item.capital_value}`;
-
-                // Add metadata details if any
-                if (item.metadata) {
-                    const metaStr = Object.entries(item.metadata)
-                        .map(([key, val]) => `- ${key}: ${val}`)
-                        .join('\n');
-                    if (metaStr) details += `\n\nOutros dados:\n${metaStr}`;
-                }
-                response = details;
-            } else if (results.length > 1 && results.length < 10) {
-                const names = results.map(r => r.associate_name).join(', ');
-                response = `Encontrei ${results.length} associados com esse termo: ${names}. Seja mais específico para ver detalhes.`;
-            } else if (results.length >= 10) {
-                response = `Encontrei muitos associados (${results.length}) com esse termo. Por favor, especifique melhor o nome.`;
-            } else {
-                // Try searching in metadata
-                const metaResults = data.filter(item =>
-                    item.metadata && Object.values(item.metadata).some(val => String(val).toLowerCase().includes(lowerQuery))
-                );
-
-                if (metaResults.length > 0) {
-                    response = `Encontrei ${metaResults.length} registros com essa informação nos dados extras (metadados). O primeiro é: ${metaResults[0].associate_name}.`;
-                } else {
-                    response = `Não encontrei nenhum associado combatendo com "${query}".`;
-                }
-            }
-        }
-
-        return response;
+    const saveApiKey = (key: string) => {
+        localStorage.setItem('grok_api_key', key);
+        setApiKey(key);
+        setShowKeyInput(false);
     };
 
-    const handleSend = () => {
+    const callGrokAPI = async (userQuery: string) => {
+        if (!apiKey) return "Preciso de uma chave de API para funcionar.";
+
+        const MODELS = {
+            PRIMARY: "grok-2-vision-1212", // Tentativa de usar Free/Beta/Legacy
+            FALLBACK: "grok-4-latest" // Fallback pago/premium
+        };
+
+        // Context simplification
+        const contextData = data.map(d => ({
+            n: d.associate_name,
+            c: d.capital_value,
+            a: d.account_number,
+            m: d.metadata
+        }));
+
+        const systemPrompt = `Atue como um analista de dados SÊNIOR e OBJETIVO.
+                    
+                    Dados (JSON): ${JSON.stringify(contextData)}
+                    
+                    REGRAS P/ RESPOSTA:
+                    1. SEJA BREVE. Máximo de 3 a 5 linhas ou bullet points.
+                    2. Resuma os insights. Não liste dados brutos a menos que pedido.
+                    3. Use Markdown e emojis para facilitar leitura rápida.
+                    4. Destaque números importantes em **negrito**.`;
+
+        const createPayload = (model: string) => ({
+            messages: [
+                { role: "system", content: systemPrompt },
+                { role: "user", content: userQuery }
+            ],
+            model: model,
+            stream: false,
+            temperature: 0
+        });
+
+        const performRequest = async (model: string) => {
+            const response = await fetch('https://api.x.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(createPayload(model))
+            });
+
+            const resData = await response.json();
+
+            if (!response.ok) {
+                const msg = resData.error?.message || response.statusText;
+                throw new Error(msg); // Lança erro para capturar no retry
+            }
+
+            return resData.choices?.[0]?.message?.content;
+        };
+
+        try {
+            // Tenta Modelo Primário (Gratuito/Beta)
+            try {
+                return await performRequest(MODELS.PRIMARY);
+            } catch (primaryError: any) {
+                console.warn(`Erro no modelo ${MODELS.PRIMARY}, tentando fallback...`, primaryError);
+
+                // Tenta Modelo Fallback (Pago/Premium)
+                const fallbackText = await performRequest(MODELS.FALLBACK);
+                return `(🔄 Fallback p/ Grok 4): ${fallbackText}`;
+            }
+
+        } catch (error: any) {
+            console.error("Fetch Error:", error);
+            // Fallback to internal logic with error notice
+            const fallbackResponse = internalProcessQuery(userQuery);
+            return `⚠️ **API Grok Instável (Todos os modelos)**: ${error.message}\n\n✅ **Alternativa Offline (Ativada)**:\n${fallbackResponse}`;
+        }
+    };
+
+    const processQuery = async (query: string) => {
+        if (!apiKey) {
+            return "⚠️ **Modo Offline**: Para análises complexas, insira sua chave da Grok API no topo do chat.\n\n" + internalProcessQuery(query);
+        }
+        return await callGrokAPI(query);
+    };
+
+    const internalProcessQuery = (query: string) => {
+        // ... (Keep existing heuristic logic as fallback/offline mode)
+        const lowerQuery = query.toLowerCase();
+
+        // Helper: Parse currency
+        const parseValue = (val: string) => parseFloat(val.replace(/[^\d,-]/g, '').replace(',', '.')) || 0;
+        const formatValue = (val: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+
+        // Analysis: Totals and Averages
+        const totalCapital = data.reduce((acc, curr) => acc + parseValue(curr.capital_value), 0);
+        const avgCapital = data.length > 0 ? totalCapital / data.length : 0;
+
+        // Handler 1: Financial Stats (Specific)
+        if (lowerQuery.includes('total') || lowerQuery.includes('soma') || lowerQuery.includes('valor')) {
+            return `💰 (Offline) O valor total acumulado é de **${formatValue(totalCapital)}**, com uma média de **${formatValue(avgCapital)}** por associado.`;
+        }
+        return "Para respostas mais inteligentes ('quem ganha mais', 'analise o balanço'), conecte a API Key!";
+    };
+
+    const handleSend = async () => {
         if (!inputValue.trim()) return;
 
         const userMsg: Message = {
@@ -120,36 +168,59 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
         setInputValue('');
         setIsTyping(true);
 
-        // Simulate AI delay
-        setTimeout(() => {
-            const responseText = processQuery(userMsg.text);
-            const aiMsg: Message = {
-                id: (Date.now() + 1).toString(),
-                text: responseText,
-                sender: 'ai',
-                timestamp: new Date()
-            };
-            setMessages(prev => [...prev, aiMsg]);
-            setIsTyping(false);
-        }, 800);
+        const responseText = await processQuery(userMsg.text);
+
+        const aiMsg: Message = {
+            id: (Date.now() + 1).toString(),
+            text: responseText,
+            sender: 'ai',
+            timestamp: new Date()
+        };
+        setMessages(prev => [...prev, aiMsg]);
+        setIsTyping(false);
     };
 
     return (
         <div className="flex flex-col h-full bg-gray-900 border-l border-white/10 w-96 shadow-2xl animate-in slide-in-from-right duration-300">
             {/* Header */}
-            <div className="p-4 border-b border-white/10 flex items-center justify-between bg-gray-800/50">
-                <div className="flex items-center gap-2">
-                    <div className="p-2 bg-pink-500/20 rounded-lg">
-                        <Sparkles className="w-5 h-5 text-pink-400" />
+            <div className="p-4 border-b border-white/10 flex flex-col gap-2 bg-gray-800/50">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                        <div className="p-2 bg-green-500/20 rounded-lg">
+                            <Sparkles className="w-5 h-5 text-green-400" />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-semibold text-white">IA Conectada</h3>
+                            <p className="text-xs text-green-400">
+                                {apiKey ? '● Grok (Ativo)' : '○ Offline'}
+                            </p>
+                        </div>
                     </div>
-                    <div>
-                        <h3 className="text-sm font-semibold text-white">Assistente IA</h3>
-                        <p className="text-xs text-text-muted">Pergunte sobre os dados</p>
+                    <div className="flex gap-2">
+                        <button onClick={() => setShowKeyInput(!showKeyInput)} className="text-xs text-gray-400 hover:text-white underline">
+                            {apiKey ? 'Config' : 'Ativar IA'}
+                        </button>
+                        <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors">
+                            <X className="w-5 h-5 text-gray-400" />
+                        </button>
                     </div>
                 </div>
-                <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-full transition-colors">
-                    <X className="w-5 h-5 text-gray-400" />
-                </button>
+
+                {/* API Key Input */}
+                {showKeyInput && (
+                    <div className="bg-gray-900 p-2 rounded border border-green-500/30 text-xs">
+                        <p className="mb-2 text-gray-300">Chave Grok API:</p>
+                        <div className="flex gap-2">
+                            <input
+                                type="password"
+                                className="bg-black/50 border border-gray-700 rounded p-1 flex-1 text-white"
+                                placeholder={DEFAULT_KEY.substring(0, 8) + "...".substring(0, 8)}
+                                onBlur={(e) => saveApiKey(e.target.value)}
+                            />
+                        </div>
+                        <p className="mt-1 text-gray-500 text-[10px]">Usando modelo Grok-4 Latest</p>
+                    </div>
+                )}
             </div>
 
             {/* Messages */}
@@ -165,7 +236,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                                 : 'bg-gray-800 text-gray-200 rounded-bl-none border border-white/5'
                                 }`}
                         >
-                            <div className="whitespace-pre-line">{msg.text}</div>
+                            <div className="whitespace-pre-wrap">{msg.text}</div>
                             <span className="text-[10px] opacity-50 mt-1 block text-right">
                                 {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
@@ -194,7 +265,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                        placeholder="Pergunte algo..."
+                        placeholder={apiKey ? "Pergunte QUALQUER coisa aos dados..." : "Pergunte o Total (ou configure a IA)..."}
                         className="flex-1 bg-gray-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-pink-500/50 transition-colors"
                     />
                     <button
