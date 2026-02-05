@@ -3,7 +3,6 @@ import Papa from 'papaparse';
 import { Upload, FileText, Check, AlertCircle, Save, CheckCircle2, MessageSquare, Table as TableIcon, Trash2, Edit2, X, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import { CapitalSocialAssistant } from './CapitalSocialAssistant';
 
 interface CapitalSocialRecord {
     id?: string; // Optional for new records
@@ -23,7 +22,6 @@ export const CapitalSocialLoader: React.FC = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
-    const [showAssistant, setShowAssistant] = useState(false);
     const [showTable, setShowTable] = useState(false); // Default: hidden
 
     // Editing State
@@ -236,7 +234,7 @@ export const CapitalSocialLoader: React.FC = () => {
 
     return (
         <div className="flex h-[calc(100vh-2rem)] gap-4 overflow-hidden p-6 max-w-[95vw] mx-auto">
-            <div className={`flex-1 flex flex-col space-y-6 overflow-y-auto min-w-0 transition-all duration-300 ${showAssistant ? 'mr-2' : ''}`}>
+            <div className={`flex-1 flex flex-col space-y-6 overflow-y-auto min-w-0 transition-all duration-300`}>
 
                 {/* Header Card */}
                 <div className="bg-gray-800 rounded-xl p-6 border border-gray-700 shadow-lg shrink-0">
@@ -264,20 +262,6 @@ export const CapitalSocialLoader: React.FC = () => {
                                 >
                                     {showTable ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                     {showTable ? 'Ocultar Tabela' : 'Ver Tabela'}
-                                </button>
-                            )}
-
-                            {/* Toggle AI Chat */}
-                            {activeData.length > 0 && (
-                                <button
-                                    onClick={() => setShowAssistant(!showAssistant)}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showAssistant
-                                        ? 'bg-pink-600 text-white'
-                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                                        }`}
-                                >
-                                    <MessageSquare className="w-4 h-4" />
-                                    {showAssistant ? 'Ocultar Chat' : 'Conversar com IA'}
                                 </button>
                             )}
                         </div>
@@ -449,14 +433,6 @@ export const CapitalSocialLoader: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            {/* AI Assistant Sidebar */}
-            {showAssistant && (
-                <CapitalSocialAssistant
-                    data={activeData}
-                    onClose={() => setShowAssistant(false)}
-                />
-            )}
         </div>
     );
 };

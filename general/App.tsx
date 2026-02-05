@@ -29,7 +29,7 @@ const Dashboard: React.FC = () => {
   const [showRevenueTimeline, setShowRevenueTimeline] = useState(false);
   const [showCommandCenter, setShowCommandCenter] = useState(false);
   const [showBucketList, setShowBucketList] = useState(false);
-  const [showEventsAgenda, setShowEventsAgenda] = useState(false);
+  const [showEventsAgenda, setShowEventsAgenda] = useState(true);
   const [showCapitalSocial, setShowCapitalSocial] = useState(false);
 
   // Clock

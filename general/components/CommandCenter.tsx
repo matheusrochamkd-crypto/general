@@ -1,31 +1,24 @@
-import React, { useMemo } from 'react';
-import { Shield, AlertTriangle, CheckCircle2, Target, Crosshair, Radio, ArrowLeft } from 'lucide-react';
-import { TransactionItem } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, Terminal, Shield, TrendingUp, Users, Calendar, AlertTriangle, Lock, ArrowLeft } from 'lucide-react';
+import { useGeneralIntel } from '../hooks/useGeneralIntel';
+
+interface Message {
+    role: 'system' | 'user' | 'assistant';
+    content: string;
+}
 
 interface CommandCenterProps {
     onBack: () => void;
     monthName: string;
-    // Financial Data
-    targets: TransactionItem[];
-    fixedIncome: TransactionItem[];
-    fixedCosts: TransactionItem[];
-    variableCosts: TransactionItem[];
+    targets: any[];
+    fixedIncome: any[];
+    fixedCosts: any[];
+    variableCosts: any[];
     totalRealized: number;
     totalExpectation: number;
     totalCost: number;
     coveragePercent: number;
     missionGap: number;
-}
-
-type MissionStatus = 'CRITICAL' | 'DANGER' | 'STABLE' | 'DOMINANCE';
-
-interface AnalysisResult {
-    status: MissionStatus;
-    statusLabel: string;
-    statusColor: string;
-    statusIcon: React.ReactNode;
-    intelReport: string;
-    orders: string[];
 }
 
 export const CommandCenter: React.FC<CommandCenterProps> = ({
@@ -41,201 +34,246 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
     coveragePercent,
     missionGap
 }) => {
-    const formatCurrency = (val: number) => {
-        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(val);
+    const { intel, loading } = useGeneralIntel();
+    const [messages, setMessages] = useState<Message[]>([]);
+    const [input, setInput] = useState('');
+    const [isTyping, setIsTyping] = useState(false);
+    const messagesEndRef = useRef<HTMLDivElement>(null);
+
+    // Initial General Greeting
+    useEffect(() => {
+        if (!loading && intel && messages.length === 0) {
+            // merge props data with hook data
+            const fullIntel = {
+                ...intel,
+                realTimeFinancials: {
+                    month: monthName,
+                    totalRealized,
+                    totalExpectation,
+                    totalCost,
+                    coveragePercent,
+                    missionGap,
+                    targets,
+                    fixedCosts,
+                    variableCosts
+                }
+            };
+
+            const systemContext = `
+            YOU ARE 'THE GENERAL'. A CYBERPUNK MILITARY STRATEGIST ADVISING THE USER.
+            YOU HAVE READ-ONLY ACCESS TO THE FOLLOWING INTEL: ${JSON.stringify(fullIntel)}.
+            
+            ROLE:
+            - You are the central brain of this operation.
+            - You are ruthless, efficient, and strategic.
+            - You speak in direct commands and SITREP (Situation Report) style.
+            - Do not be polite. Be effective.
+            
+            OBJECTIVE:
+            - Analyze the intel provided.
+            - Advise on financial runway, upcoming mission (events), and network expansion (capital social).
+            - If cash flow is low, demand immediate action.
+            
+            START THE CONVERSATION BY GIVING A BRIEF "SITREP" BASED ON THE DATA.
+            `;
+
+            generateResponse([
+                { role: 'system', content: systemContext },
+                { role: 'user', content: "General, report status." }
+            ]);
+        }
+    }, [loading, intel, monthName, targets, fixedIncome, fixedCosts, variableCosts, totalRealized, totalExpectation, totalCost, coveragePercent, missionGap]);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    // Generate AI-like analysis based on financial data
-    const analysis: AnalysisResult = useMemo(() => {
-        const pendingTargets = targets.filter(t => !t.completed);
-        const completedTargets = targets.filter(t => t.completed);
-        const pendingTargetsValue = pendingTargets.reduce((acc, t) => acc + t.amount, 0);
-        const largestPendingTarget = pendingTargets.sort((a, b) => b.amount - a.amount)[0];
-        const totalVariableCost = variableCosts.reduce((acc, c) => acc + c.amount, 0);
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
 
-        // Determine mission status
-        let status: MissionStatus;
-        let statusLabel: string;
-        let statusColor: string;
-        let statusIcon: React.ReactNode;
+    const generateResponse = async (history: Message[]) => {
+        setIsTyping(true);
+        try {
+            const apiKey = import.meta.env.VITE_XAI_API_KEY;
 
-        if (coveragePercent >= 100) {
-            status = 'DOMINANCE';
-            statusLabel = 'DOMÍNIO TOTAL';
-            statusColor = 'text-accent-green';
-            statusIcon = <CheckCircle2 className="w-8 h-8 text-accent-green" />;
-        } else if (coveragePercent >= 70) {
-            status = 'STABLE';
-            statusLabel = 'ESTÁVEL';
-            statusColor = 'text-accent-cyan';
-            statusIcon = <Shield className="w-8 h-8 text-accent-cyan" />;
-        } else if (coveragePercent >= 40) {
-            status = 'DANGER';
-            statusLabel = 'EM PERIGO';
-            statusColor = 'text-accent-yellow';
-            statusIcon = <AlertTriangle className="w-8 h-8 text-accent-yellow" />;
-        } else {
-            status = 'CRITICAL';
-            statusLabel = 'CRÍTICO';
-            statusColor = 'text-accent-red';
-            statusIcon = <AlertTriangle className="w-8 h-8 text-accent-red animate-pulse" />;
+            const response = await fetch('https://api.x.ai/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    messages: history,
+                    model: 'grok-beta',
+                    stream: false,
+                    temperature: 0.7
+                })
+            });
+
+            const data = await response.json();
+
+            if (data.choices && data.choices.length > 0) {
+                const aiMessage = data.choices[0].message;
+                setMessages(prev => {
+                    return [...prev, aiMessage];
+                });
+            }
+        } catch (error) {
+            console.error("Comm Link Failure:", error);
+            setMessages(prev => [...prev, { role: 'assistant', content: "⚠️ COMM LINK ERROR. ENCRYPTION FAILED. RETRY." }]);
+        } finally {
+            setIsTyping(false);
+        }
+    };
+
+    const handleSend = () => {
+        if (!input.trim()) return;
+
+        const userMsg: Message = { role: 'user', content: input };
+        const newHistory = [...messages, userMsg];
+
+        setMessages(newHistory);
+        setInput('');
+
+        let apiHistory = [...newHistory];
+
+        if (!apiHistory.some(m => m.role === 'system')) {
+            const systemContext = `
+            YOU ARE 'THE GENERAL'. A CYBERPUNK MILITARY STRATEGIST ADVISING THE USER.
+            YOU HAVE READ-ONLY ACCESS TO THE FOLLOWING INTEL: ${JSON.stringify(intel)}.
+            KEEP RESPONSES CONCISE.
+            `;
+            apiHistory = [{ role: 'system', content: systemContext }, ...apiHistory];
         }
 
-        // Generate intelligence report
-        let intelReport: string;
-        if (status === 'CRITICAL') {
-            intelReport = `Base vulnerável. Cobertura de custos em apenas ${coveragePercent.toFixed(0)}%. Dependência de missões secundárias (Alvos) para sobreviver é crítica. Risco de insolvência iminente.`;
-        } else if (status === 'DANGER') {
-            intelReport = `Situação instável. Cobertura em ${coveragePercent.toFixed(0)}%. Ainda faltam ${formatCurrency(missionGap)} para neutralizar ameaças. Execução de alvos pendentes é essencial.`;
-        } else if (status === 'STABLE') {
-            intelReport = `Operação em curso. ${coveragePercent.toFixed(0)}% dos custos cobertos. Mantenha disciplina e execute os alvos restantes para garantir domínio.`;
-        } else {
-            intelReport = `Território conquistado. Custos neutralizados com sobra de ${formatCurrency(Math.abs(missionGap))}. Continue acumulando recursos para próximas operações.`;
-        }
+        generateResponse(apiHistory);
+    };
 
-        // Generate tactical orders
-        const orders: string[] = [];
+    // UI Render
+    if (loading) return <div className="p-10 text-center text-green-500 font-mono animate-pulse">ESTABLISHING SECURE CONNECTION...</div>;
 
-        // Order 1: Priority target or cost control
-        if (largestPendingTarget && status !== 'DOMINANCE') {
-            orders.push(`PRIORIDADE ALFA: Mobilize esforços para fechar "${largestPendingTarget.description}" (${formatCurrency(largestPendingTarget.amount)}). Esse alvo é crítico para a missão.`);
-        } else if (status === 'DOMINANCE') {
-            orders.push(`CONSOLIDAÇÃO: Recursos excedentes detectados. Direcione ${formatCurrency(Math.abs(missionGap))} para o fundo de reserva ou investimentos estratégicos.`);
-        } else {
-            orders.push(`ALERTA VERMELHO: Nenhum alvo pendente identificado e cobertura insuficiente. Busque novas fontes de receita imediatamente.`);
-        }
-
-        // Order 2: Cost control or target execution
-        if (totalVariableCost > 0 && status === 'CRITICAL') {
-            orders.push(`CONTENÇÃO DE DANOS: Cesse gastos variáveis não essenciais (${formatCurrency(totalVariableCost)} registrados). Estamos sangrando recursos.`);
-        } else if (pendingTargets.length > 1) {
-            orders.push(`EXECUÇÃO TÁTICA: ${pendingTargets.length} alvos pendentes totalizando ${formatCurrency(pendingTargetsValue)}. Priorize por valor e probabilidade de fechamento.`);
-        } else if (status === 'STABLE') {
-            orders.push(`MANUTENÇÃO: Continue operações normais. Monitore custos variáveis e evite gastos não planejados.`);
-        } else {
-            orders.push(`TERRITÓRIO SEGURO: Operação estável. Avalie oportunidades de expansão para o próximo mês.`);
-        }
-
-        // Order 3: Motivational/strategic
-        if (status === 'CRITICAL') {
-            orders.push(`DISCIPLINA, OPERADOR: A esperança não é uma estratégia. Execute os contratos ou prepare-se para a derrota. Câmbio desligo.`);
-        } else if (status === 'DANGER') {
-            orders.push(`FOCO TOTAL: Cada real conta. Mantenha a disciplina e não desvie do objetivo. O erro é fatal.`);
-        } else if (status === 'STABLE') {
-            orders.push(`MANTENHA O RITMO: A vitória está próxima. Não relaxe até cruzar a linha de chegada.`);
-        } else {
-            orders.push(`MISSÃO CUMPRIDA: Excelente trabalho, Operador. Prepare-se para os próximos desafios. A guerra nunca acaba.`);
-        }
-
-        return { status, statusLabel, statusColor, statusIcon, intelReport, orders };
-    }, [targets, variableCosts, coveragePercent, missionGap]);
+    const cashColor = (intel?.financials.currentMonth?.total || 0) > 2000 ? 'text-emerald-400' : 'text-red-400';
 
     return (
-        <div className="min-h-screen bg-[#020202] py-8 px-4 md:px-8">
-            <div className="max-w-4xl mx-auto">
-                {/* Back Button */}
-                <button
-                    onClick={onBack}
-                    className="flex items-center gap-2 text-text-muted hover:text-white transition-colors mb-8 group"
-                >
-                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                    <span className="text-sm uppercase tracking-wider">Retornar ao Dashboard</span>
-                </button>
+        <div className="flex h-[calc(100vh-2rem)] gap-6 p-6 max-w-[95vw] mx-auto bg-black text-white font-mono overflow-hidden">
 
-                {/* Header */}
-                <div className="flex items-center gap-4 mb-10 border-b border-white/10 pb-6">
-                    <div className="w-12 h-12 rounded-lg bg-accent-red/20 border border-accent-red/30 flex items-center justify-center">
-                        <Radio className="w-6 h-6 text-accent-red" />
+            {/* LEFT PANEL: TACTICAL DASHBOARD */}
+            <div className="w-1/3 flex flex-col gap-6">
+
+                {/* Status Card */}
+                <div className="bg-[#0A0A0A] border border-green-900/30 p-6 rounded-xl relative overflow-hidden group hover:border-green-500/50 transition-colors">
+                    <div className="flex items-center gap-3 mb-4 border-b border-green-900/30 pb-2">
+                        <Shield className="w-6 h-6 text-green-500" />
+                        <h2 className="text-xl font-bold tracking-widest text-green-500 uppercase">Mission Status</h2>
                     </div>
-                    <div>
-                        <h1 className="text-2xl font-bold text-white uppercase tracking-wider">Comando Central</h1>
-                        <p className="text-sm text-text-muted">Análise Tática • {monthName} 2026</p>
-                    </div>
+                    <div className="text-4xl font-black text-white/90">DEFCON 4</div>
+                    <div className="text-xs text-green-700 mt-2 uppercase tracking-wider">All Systems Nominal</div>
                 </div>
 
-                {/* Mission Status Card */}
-                <div className={`relative overflow-hidden rounded-xl border ${analysis.status === 'CRITICAL' ? 'border-accent-red/50 bg-accent-red/5' :
-                        analysis.status === 'DANGER' ? 'border-accent-yellow/50 bg-accent-yellow/5' :
-                            analysis.status === 'STABLE' ? 'border-accent-cyan/50 bg-accent-cyan/5' :
-                                'border-accent-green/50 bg-accent-green/5'
-                    } p-8 mb-8`}>
-                    {/* Decorative Grid */}
-                    <div className="absolute inset-0 opacity-5">
-                        <div className="absolute inset-0" style={{
-                            backgroundImage: 'linear-gradient(0deg, transparent 24%, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.05) 26%, transparent 27%, transparent 74%, rgba(255,255,255,0.05) 75%, rgba(255,255,255,0.05) 76%, transparent 77%, transparent), linear-gradient(90deg, transparent 24%, rgba(255,255,255,0.05) 25%, rgba(255,255,255,0.05) 26%, transparent 27%, transparent 74%, rgba(255,255,255,0.05) 75%, rgba(255,255,255,0.05) 76%, transparent 77%, transparent)',
-                            backgroundSize: '50px 50px'
-                        }} />
+                {/* Financial Intel */}
+                <div className="bg-[#0A0A0A] border border-white/10 p-6 rounded-xl flex-1 flex flex-col">
+                    <div className="flex items-center gap-3 mb-4 text-emerald-500">
+                        <TrendingUp className="w-5 h-5" />
+                        <h3 className="font-bold uppercase tracking-wide text-sm">Financial Intel</h3>
                     </div>
-
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-4 mb-6">
-                            {analysis.statusIcon}
-                            <div>
-                                <p className="text-xs text-text-muted uppercase tracking-widest mb-1">Status da Missão</p>
-                                <h2 className={`text-3xl font-black uppercase tracking-tight ${analysis.statusColor}`}>
-                                    {analysis.statusLabel}
-                                </h2>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="p-3 bg-white/5 rounded border border-white/5">
+                            <div className="text-xs text-gray-500 uppercase">Proj. Revenue</div>
+                            <div className={`text-xl font-bold ${cashColor}`}>
+                                R$ {intel?.financials.currentMonth?.total || 0}
                             </div>
                         </div>
-
-                        {/* Quick Stats */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 p-4 bg-black/30 rounded-lg">
-                            <div>
-                                <p className="text-[10px] text-text-muted uppercase">Conquistado</p>
-                                <p className="text-lg font-mono font-bold text-accent-green">{formatCurrency(totalRealized)}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-text-muted uppercase">Expectativa</p>
-                                <p className="text-lg font-mono font-bold text-white">{formatCurrency(totalExpectation)}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-text-muted uppercase">Custo Total</p>
-                                <p className="text-lg font-mono font-bold text-accent-red">{formatCurrency(totalCost)}</p>
-                            </div>
-                            <div>
-                                <p className="text-[10px] text-text-muted uppercase">Cobertura</p>
-                                <p className={`text-lg font-mono font-bold ${analysis.statusColor}`}>{coveragePercent.toFixed(0)}%</p>
-                            </div>
+                        <div className="p-3 bg-white/5 rounded border border-white/5">
+                            <div className="text-xs text-gray-500 uppercase">Burn Rate</div>
+                            <div className="text-xl font-bold text-red-400">R$ {intel?.financials.burnRate}</div>
                         </div>
                     </div>
                 </div>
 
-                {/* Intelligence Report */}
-                <div className="bg-[#0A0A0A] border border-white/10 rounded-xl p-6 mb-8">
-                    <div className="flex items-center gap-3 mb-4">
-                        <Crosshair className="w-5 h-5 text-accent-cyan" />
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Relatório de Inteligência</h3>
+                {/* Agenda Intel */}
+                <div className="bg-[#0A0A0A] border border-white/10 p-6 rounded-xl flex-1 flex flex-col">
+                    <div className="flex items-center gap-3 mb-4 text-blue-500">
+                        <Calendar className="w-5 h-5" />
+                        <h3 className="font-bold uppercase tracking-wide text-sm">Upcoming Ops</h3>
                     </div>
-                    <blockquote className="border-l-2 border-accent-cyan pl-4 text-text-secondary italic leading-relaxed">
-                        {analysis.intelReport}
-                    </blockquote>
-                </div>
-
-                {/* Tactical Orders */}
-                <div className="bg-[#0A0A0A] border border-white/10 rounded-xl p-6">
-                    <div className="flex items-center gap-3 mb-6">
-                        <Target className="w-5 h-5 text-accent-yellow" />
-                        <h3 className="text-sm font-bold text-white uppercase tracking-wider">Ordens do Comando</h3>
-                    </div>
-
-                    <div className="space-y-4">
-                        {analysis.orders.map((order, index) => (
-                            <div key={index} className="flex gap-4 items-start p-4 bg-white/5 rounded-lg border border-white/5">
-                                <span className="flex-shrink-0 w-8 h-8 rounded-full bg-accent-yellow/20 border border-accent-yellow/30 flex items-center justify-center text-accent-yellow font-bold text-sm">
-                                    {index + 1}
-                                </span>
-                                <p className="text-text-secondary leading-relaxed pt-1">{order}</p>
+                    <div className="space-y-3 overflow-y-auto max-h-[200px] custom-scrollbar">
+                        {intel?.agenda.upcomingEvents.map((ev: any) => (
+                            <div key={ev.id} className="flex items-center gap-3 p-2 bg-blue-900/10 border-l-2 border-blue-500 rounded-r">
+                                <div className="text-xs text-blue-300 font-bold">{ev.start_date.slice(5)}</div>
+                                <div className="text-sm truncate">{ev.title}</div>
                             </div>
                         ))}
+                        {intel?.agenda.upcomingEvents.length === 0 && <span className="text-gray-600 text-sm">No Missions Pending.</span>}
                     </div>
                 </div>
 
-                {/* Footer */}
-                <div className="mt-10 text-center">
-                    <p className="text-xs text-text-muted uppercase tracking-widest">
-                        /// Comando Central HQ • Operação Financeira 2026 ///
-                    </p>
+            </div>
+
+            {/* RIGHT PANEL: COMM NET */}
+            <div className="flex-1 bg-[#050505] border border-white/10 rounded-xl flex flex-col relative overflow-hidden">
+                <div className="absolute top-0 inset-x-0 h-1 bg-green-500/50 shadow-[0_0_20px_rgba(34,197,94,0.5)] z-10" />
+
+                {/* Chat Header */}
+                <div className="p-4 bg-black/50 border-b border-white/10 flex items-center justify-between backdrop-blur-md sticky top-0 z-20">
+                    <div className="flex items-center gap-3">
+                        <button onClick={onBack} className="hover:bg-white/10 p-1 rounded-full text-gray-400 hover:text-white transition-colors">
+                            <ArrowLeft className="w-5 h-5" />
+                        </button>
+                        <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse" />
+                        <span className="font-bold text-green-500 tracking-widest uppercase">SECURE CHANNEL // THE GENERAL</span>
+                    </div>
+                    <Lock className="w-4 h-4 text-gray-600" />
                 </div>
+
+                {/* Messages Area */}
+                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                    {messages.filter(m => m.role !== 'system').map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div className={`max-w-[80%] p-4 rounded-xl border ${msg.role === 'user'
+                                    ? 'bg-blue-900/20 border-blue-500/30 text-blue-100 rounded-br-none'
+                                    : 'bg-[#0A0A0A] border-green-500/30 text-green-400 font-mono rounded-bl-none shadow-[0_0_15px_rgba(34,197,94,0.1)]'
+                                }`}>
+                                <div className="text-[10px] uppercase opacity-50 mb-1 tracking-wider">
+                                    {msg.role === 'user' ? 'OPERATOR' : 'GENERAL'}
+                                </div>
+                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                            </div>
+                        </div>
+                    ))}
+                    {isTyping && (
+                        <div className="flex justify-start">
+                            <div className="bg-[#0A0A0A] border border-green-500/30 text-green-500 px-4 py-2 rounded-xl rounded-bl-none text-xs animate-pulse">
+                                DECRYPTING TRANSMISSION...
+                            </div>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {/* Input Area */}
+                <div className="p-4 bg-black border-t border-white/10">
+                    <div className="flex items-center gap-4 bg-[#111] border border-white/20 rounded-lg p-2 focus-within:border-green-500/50 transition-colors">
+                        <Terminal className="w-5 h-5 text-gray-500" />
+                        <input
+                            type="text"
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                            placeholder="Enter command or query..."
+                            className="flex-1 bg-transparent border-none outline-none text-white font-mono placeholder-gray-700"
+                            autoFocus
+                        />
+                        <button
+                            onClick={handleSend}
+                            disabled={isTyping}
+                            className="p-2 bg-green-900/20 text-green-500 hover:bg-green-500 hover:text-black rounded transition-all disabled:opacity-50"
+                        >
+                            <Send className="w-5 h-5" />
+                        </button>
+                    </div>
+                </div>
+
             </div>
         </div>
     );
