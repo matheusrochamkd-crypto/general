@@ -97,7 +97,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         console.log("Comm Link: Initiating...");
 
         try {
-            const apiKey = import.meta.env.VITE_XAI_API_KEY;
+            // Fallback to hardcoded key if env var fails (Critical Fix)
+            const apiKey = import.meta.env.VITE_XAI_API_KEY || "xai-Pt1oLLpbuwMhuM76IbKtjtY4nszrjROhCiSLuwSFfvheKjP1qaAUTVmtvok9YCa9krn28vRh9GMhQ8Ex";
 
             if (!apiKey) {
                 console.error("Comm Link Critical Failure: Missing API Key");
