@@ -114,7 +114,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 },
                 body: JSON.stringify({
                     messages: history,
-                    model: 'grok-2', // UPDATED: Using grok-2 for max performance
+                    model: 'grok-beta', // UPDATED: Using grok-beta for compatibility
                     stream: false,
                     temperature: 0.7
                 })
