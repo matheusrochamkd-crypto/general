@@ -19,5 +19,5 @@ This workflow automates the process of saving your work to GitHub. It ensures th
    `git commit -m "chore: automatic project update"`
 
 4. **Push to Remote**
-   Send changes to the origin main branch.
-   `git push origin main`
+   Send changes to the origin deploy/agenda-v3 branch.
+   `git push origin deploy/agenda-v3`
