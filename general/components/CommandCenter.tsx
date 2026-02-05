@@ -97,6 +97,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
         try {
             const apiKey = import.meta.env.VITE_XAI_API_KEY;
 
+            console.log("Comm Link: Sending transmission...");
             const response = await fetch('https://api.x.ai/v1/chat/completions', {
                 method: 'POST',
                 headers: {
@@ -105,22 +106,13 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
                 },
                 body: JSON.stringify({
                     messages: history,
-                    console.log("Comm Link: Sending transmission...");
-                    const response = await fetch('https://api.x.ai/v1/chat/completions', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
-                        },
-                        body: JSON.stringify({
-                            messages: history,
-                            model: 'grok-2', // UPDATED: Using grok-2 for max performance
-                            stream: false,
-                            temperature: 0.7
-                        })
-                    });
+                    model: 'grok-2', // UPDATED: Using grok-2 for max performance
+                    stream: false,
+                    temperature: 0.7
+                })
+            });
 
-                    if(!response.ok) {
+            if (!response.ok) {
                 const errText = await response.text();
                 throw new Error(`Server responded with ${response.status}: ${errText}`);
             }
