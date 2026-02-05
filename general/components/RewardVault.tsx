@@ -175,11 +175,21 @@ export const RewardVault: React.FC<RewardVaultProps> = ({
                                     <p className="text-xs text-text-muted mt-1">Faltando</p>
                                 </div>
                                 <div className="text-center border-x border-white/5">
-                                    <div className="text-2xl font-bold font-mono text-accent-green">{missions.filter(m => progressPercent >= m.unlockThreshold).length}</div>
+                                    <div className="text-2xl font-bold font-mono text-accent-green">
+                                        {missions.filter(m => {
+                                            if (m.unlockAmount) return valorGuardadoAtual >= m.unlockAmount;
+                                            return progressPercent >= (m.unlockThreshold || 100);
+                                        }).length}
+                                    </div>
                                     <p className="text-xs text-text-muted mt-1">Desbloqueadas</p>
                                 </div>
                                 <div className="text-center">
-                                    <div className="text-2xl font-bold font-mono text-text-muted">{missions.filter(m => progressPercent < m.unlockThreshold).length}</div>
+                                    <div className="text-2xl font-bold font-mono text-text-muted">
+                                        {missions.filter(m => {
+                                            if (m.unlockAmount) return valorGuardadoAtual < m.unlockAmount;
+                                            return progressPercent < (m.unlockThreshold || 100);
+                                        }).length}
+                                    </div>
                                     <p className="text-xs text-text-muted mt-1">Bloqueadas</p>
                                 </div>
                             </div>
