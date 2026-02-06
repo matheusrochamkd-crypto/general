@@ -20,6 +20,7 @@ interface AgendaEvent {
     completed: boolean;
     color?: string;
     recurrence?: 'WEEKLY' | 'NONE';
+    allDay?: boolean;
 }
 
 type ViewType = 'MONTH' | 'WEEK' | 'DAY';
@@ -41,6 +42,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [view, setView] = useState<ViewType>('MONTH');
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const lastScrollTime = useRef(0);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -53,6 +56,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [formEndTime, setFormEndTime] = useState('');
     const [formType, setFormType] = useState<AgendaEvent['type']>('EVENT');
     const [formRecurrence, setFormRecurrence] = useState<'WEEKLY' | 'NONE'>('NONE');
+    const [formAllDay, setFormAllDay] = useState(false);
 
     // Data Loading & Legacy Recovery
     useEffect(() => {
@@ -75,7 +79,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         endTime: e.time ? e.time.split('-')[1]?.trim() : undefined,
                         type: e.type || 'EVENT',
                         completed: e.completed || false,
-                        recurrence: e.recurrence || 'NONE'
+                        recurrence: e.recurrence || 'NONE',
+                        allDay: e.all_day || false
                     }));
                     setEvents(mapped);
                     // Sync to local
@@ -164,7 +169,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     time: event.startTime ? `${event.startTime} - ${event.endTime || ''}` : null,
                     type: event.type,
                     completed: event.completed,
-                    recurrence: event.recurrence
+                    recurrence: event.recurrence,
+                    all_day: event.allDay // Supabase column needs to simplify exist
                 });
             }
         } catch (err) {
@@ -191,6 +197,34 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
     const goToToday = () => setCurrentDate(new Date());
 
+    // Scroll Navigation
+    useEffect(() => {
+        const handleWheel = (e: WheelEvent) => {
+            const now = Date.now();
+            if (now - lastScrollTime.current < 500) return; // Debounce 500ms
+
+            if (Math.abs(e.deltaY) > 20) { // Threshold
+                if (e.deltaY > 0) {
+                    nextPeriod();
+                } else {
+                    prevPeriod();
+                }
+                lastScrollTime.current = now;
+            }
+        };
+
+        const container = containerRef.current;
+        if (container) {
+            container.addEventListener('wheel', handleWheel);
+        }
+
+        return () => {
+            if (container) {
+                container.removeEventListener('wheel', handleWheel);
+            }
+        };
+    }, [currentDate, view]); // Re-bind when state changes to ensure closure captures latest
+
     // Helper: Dates for Current View
     const viewDates = useMemo(() => {
         const dates: Date[] = [];
@@ -205,9 +239,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 next.setDate(first + i);
                 dates.push(next);
             }
-        } else if (view === 'MONTH') {
-            // Basic Month Logic (Need full grid for proper month view, but simple array here for headers if needed)
-            // For Month View we usually use a different generator logic inside the render
+        } else if (view === 'DAY') {
+            dates.push(new Date(currentDate));
         }
         return dates;
     }, [currentDate, view]);
@@ -255,6 +288,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setFormEndTime(`${nextHStr}:00`);
         setFormType('EVENT');
         setFormRecurrence('NONE');
+        setFormAllDay(false);
         setShowModal(true);
     };
 
@@ -269,6 +303,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setFormEndTime(event.endTime || '');
         setFormType(event.type);
         setFormRecurrence(event.recurrence || 'NONE');
+        setFormAllDay(event.allDay || false);
         setShowModal(true);
     };
 
@@ -285,7 +320,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             endTime: formEndTime,
             type: formType,
             completed: selectedEvent ? selectedEvent.completed : false,
-            recurrence: formRecurrence
+            recurrence: formRecurrence,
+            allDay: formAllDay
         };
 
         persistEvent(newEvent);
@@ -322,7 +358,32 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
                 {/* Time Grid */}
                 <div className="flex-1 overflow-y-auto relative custom-scrollbar">
-                    {/* Time Columns */}
+                    {/* All Day Row */}
+                    <div className="flex border-b border-white/10 min-h-[40px]">
+                        <div className="w-14 text-[10px] text-gray-500 flex items-center justify-center border-r border-white/10 bg-[#0A0A0A]">
+                            DIA TODO
+                        </div>
+                        {viewDates.map((date, dayIdx) => {
+                            const dateStr = date.toISOString().split('T')[0];
+                            const dayEvents = getEventsForDate(dateStr).filter(e => e.allDay);
+
+                            return (
+                                <div key={dayIdx} className="flex-1 border-l border-white/5 p-1 flex flex-col gap-1">
+                                    {dayEvents.map(event => (
+                                        <div
+                                            key={event.id}
+                                            onClick={(e) => openEditModal(e, event)}
+                                            className={`px-2 py-1 text-xs font-bold rounded cursor-pointer ${EVENT_COLORS[event.type].bg} border-l-4 ${EVENT_COLORS[event.type].border}`}
+                                        >
+                                            {event.title}
+                                        </div>
+                                    ))}
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {/* Time ColumnsContainer */}
                     <div className="flex min-h-[1440px]"> {/* 24h * 60px/h */}
 
                         {/* Time Labels */}
@@ -337,7 +398,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         {/* Day Columns */}
                         {viewDates.map((date, dayIdx) => {
                             const dateStr = date.toISOString().split('T')[0];
-                            const dayEvents = getEventsForDate(dateStr);
+                            const dayEvents = getEventsForDate(dateStr).filter(e => !e.allDay);
 
                             return (
                                 <div
@@ -445,7 +506,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                     onClick={(e) => {
                                         e.stopPropagation();
                                         setCurrentDate(new Date(year, month, day));
-                                        setView('WEEK'); // Drill down
+                                        setView('DAY'); // Drill down
                                     }}
                                 >
                                     {day}
@@ -473,7 +534,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     };
 
     return (
-        <div className="flex h-screen bg-black text-white overflow-hidden">
+        <div ref={containerRef} className="flex h-screen bg-black text-white overflow-hidden">
             {/* Sidebar */}
             <div className={`w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col transition-all duration-300 ${sidebarOpen ? '' : '-ml-64'}`}>
                 {/* Header Logo Area */}
@@ -500,15 +561,40 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     <div className="flex justify-between items-center mb-4">
                         <span className="text-sm font-medium text-gray-300">{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
                     </div>
-                    {/* Placeholder for mini-cal visual only for speed */}
+                    {/* Functional Mini Calendar */}
                     <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500">
                         {WEEKDAYS.map(d => <div key={d}>{d[0]}</div>)}
-                        {/* Mock grid - just visual rhythm */}
-                        {Array.from({ length: 35 }).map((_, i) => (
-                            <div key={i} className={`h-6 w-6 flex items-center justify-center rounded-full ${i === 15 ? 'bg-blue-600 text-white' : 'hover:bg-white/10 cursor-pointer'}`}>
-                                {Math.max(1, (i - 4) % 31)}
-                            </div>
-                        ))}
+
+                        {(() => {
+                            const mYear = currentDate.getFullYear();
+                            const mMonth = currentDate.getMonth();
+                            const mFirstDay = new Date(mYear, mMonth, 1).getDay();
+                            const mDaysInMonth = new Date(mYear, mMonth + 1, 0).getDate();
+                            const mBlanks = Array.from({ length: mFirstDay });
+                            const mDays = Array.from({ length: mDaysInMonth }, (_, i) => i + 1);
+
+                            return (
+                                <>
+                                    {mBlanks.map((_, i) => <div key={`mb-${i}`} />)}
+                                    {mDays.map(d => {
+                                        const dDate = new Date(mYear, mMonth, d);
+                                        const isSel = dDate.toDateString() === currentDate.toDateString();
+                                        return (
+                                            <div
+                                                key={d}
+                                                onClick={() => {
+                                                    setCurrentDate(dDate);
+                                                    setView('DAY');
+                                                }}
+                                                className={`h-6 w-6 flex items-center justify-center rounded-full transition-colors cursor-pointer ${isSel ? 'bg-blue-600 text-white' : 'hover:bg-white/10'}`}
+                                            >
+                                                {d}
+                                            </div>
+                                        )
+                                    })}
+                                </>
+                            );
+                        })()}
                     </div>
 
                     {/* Purpose Images Rotation */}
@@ -568,7 +654,13 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 onClick={() => setView('WEEK')}
                                 className={`px-3 py-1 rounded text-sm ${view === 'WEEK' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
                             >
-                                Semana
+                                Semanas
+                            </button>
+                            <button
+                                onClick={() => setView('DAY')}
+                                className={`px-3 py-1 rounded text-sm ${view === 'DAY' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                Dia
                             </button>
                         </div>
                         <button className="p-2 hover:bg-white/10 rounded-full"><Search className="w-5 h-5 text-gray-400" /></button>
@@ -577,7 +669,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 </header>
 
                 {/* View Area */}
-                {view === 'WEEK' ? <WeeklyGrid /> : <MonthGrid />}
+                {view === 'MONTH' ? <MonthGrid /> : <WeeklyGrid />}
             </div>
 
             {/* Event Modal */}
@@ -615,26 +707,57 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
                             <div className="flex items-center gap-4 text-gray-300">
                                 <div className="p-2 rounded bg-white/5"><Clock className="w-5 h-5" /></div>
-                                <div className="flex-1 flex gap-2">
-                                    <input
-                                        type="date"
-                                        value={formStartDate}
-                                        onChange={e => setFormStartDate(e.target.value)}
-                                        className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
-                                    <input
-                                        type="time"
-                                        value={formStartTime}
-                                        onChange={e => setFormStartTime(e.target.value)}
-                                        className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
-                                    <span>-</span>
-                                    <input
-                                        type="time"
-                                        value={formEndTime}
-                                        onChange={e => setFormEndTime(e.target.value)}
-                                        className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                    />
+                                <div className="flex-1 flex flex-col gap-2">
+                                    <label className="flex items-center gap-2 cursor-pointer select-none">
+                                        <input
+                                            type="checkbox"
+                                            checked={formAllDay}
+                                            onChange={(e) => setFormAllDay(e.target.checked)}
+                                            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span className="text-sm text-gray-300">O dia todo</span>
+                                    </label>
+
+                                    {!formAllDay && (
+                                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-1">
+                                            <input
+                                                type="date"
+                                                value={formStartDate}
+                                                onChange={e => setFormStartDate(e.target.value)}
+                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <input
+                                                type="time"
+                                                value={formStartTime}
+                                                onChange={e => setFormStartTime(e.target.value)}
+                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <span className="self-center">-</span>
+                                            <input
+                                                type="time"
+                                                value={formEndTime}
+                                                onChange={e => setFormEndTime(e.target.value)}
+                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    )}
+                                    {formAllDay && (
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="date"
+                                                value={formStartDate}
+                                                onChange={e => setFormStartDate(e.target.value)}
+                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                            <span className="self-center">até</span>
+                                            <input
+                                                type="date"
+                                                value={formEndDate}
+                                                onChange={e => setFormEndDate(e.target.value)}
+                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
