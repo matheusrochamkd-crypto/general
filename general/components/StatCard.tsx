@@ -39,7 +39,7 @@ export const StatCard: React.FC<StatCardProps> = ({ title, value, subtitle, icon
 
       {/* Value */}
       <div>
-        <h3 className={`text-2xl font-semibold font-mono-numbers tracking-tight mb-1 ${colors.text}`}>
+        <h3 className={`text-2xl font-bold tracking-tight mb-1 ${colors.text}`}>
           {formatCurrency(value)}
         </h3>
         <p className="text-[11px] text-text-muted uppercase tracking-wider">{subtitle}</p>

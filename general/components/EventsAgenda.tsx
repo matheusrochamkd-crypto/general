@@ -397,17 +397,33 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         return (
                             <div
                                 key={day}
-                                className={`min-h-[120px] bg-[#0A0A0A] border border-white/5 p-2 transition hover:bg-white/[0.03] cursor-pointer flex flex-col gap-1 ${isToday ? 'bg-blue-900/10 border-blue-500/30' : ''}`}
-                                onClick={() => {
-                                    setCurrentDate(new Date(year, month, day));
-                                    setView('WEEK'); // Drill down
+                                className={`min-h-[120px] bg-[#0A0A0A] border border-white/5 p-2 transition hover:bg-white/[0.03] flex flex-col gap-1 ${isToday ? 'bg-blue-900/10 border-blue-500/30' : ''}`}
+                                onClick={(e) => {
+                                    // Empty space click -> Create Event
+                                    // Prevent if clicking on children (handled by stopPropagation there, but just in case)
+                                    if (e.target === e.currentTarget) {
+                                        openNewEventModal(new Date(year, month, day));
+                                    }
                                 }}
                             >
-                                <div className={`text-sm font-medium mb-1 ${isToday ? 'text-blue-400' : 'text-gray-400'}`}>{day}</div>
-                                <div className="space-y-1 flex-1">
+                                <div
+                                    className={`text-sm font-medium mb-1 cursor-pointer w-fit px-1 rounded hover:bg-white/10 ${isToday ? 'text-blue-400' : 'text-gray-400'}`}
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setCurrentDate(new Date(year, month, day));
+                                        setView('WEEK'); // Drill down
+                                    }}
+                                >
+                                    {day}
+                                </div>
+                                <div className="space-y-1 flex-1" onClick={() => openNewEventModal(new Date(year, month, day))}>
                                     {dayEvents.slice(0, 5).map(ev => (
-                                        <div key={ev.id} className={`text-[11px] px-2 py-1 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-2 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all`}>
-                                            {ev.startTime && <span className="font-mono font-bold text-xs opacity-100">{ev.startTime}</span>}
+                                        <div
+                                            key={ev.id}
+                                            onClick={(e) => openEditModal(e, ev)}
+                                            className={`text-[11px] px-2 py-1 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-2 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all cursor-pointer`}
+                                        >
+                                            {ev.startTime && <span className="font-sans font-bold text-xs opacity-100">{ev.startTime}</span>}
                                             <span className="truncate font-medium flex-1">{ev.title}</span>
                                         </div>
                                     ))}
@@ -461,23 +477,9 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     </div>
                 </div>
 
-                {/* My Calendars Filter */}
-                <div className="p-4 mt-4">
-                    <div className="text-xs font-semibold text-gray-500 uppercase tracking-wilder mb-3">Minhas Agendas</div>
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded bg-[#039BE5] flex items-center justify-center"><CheckCircle2 className="w-3 h-3 text-black/50" /></div>
-                            <span className="text-sm">Reuniões</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded bg-[#33B679]" />
-                            <span className="text-sm">Tarefas</span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="w-4 h-4 rounded bg-[#F4511E]" />
-                            <span className="text-sm">Lembretes</span>
-                        </div>
-                    </div>
+                {/* Minhas Agendas Filter - REMOVED */}
+                <div className="p-4 mt-4 opacity-0 pointer-events-none">
+                    {/* Removed as per user request */}
                 </div>
             </div>
 

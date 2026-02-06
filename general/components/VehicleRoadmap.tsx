@@ -236,7 +236,7 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
                                     <div>
                                         {/* Badge */}
                                         <div className="flex items-center gap-2 mb-4">
-                                            <span className={`text-[10px] font-mono uppercase tracking-[0.2em] px-2 py-1 ${isActive ? 'bg-accent-yellow text-black font-bold' : 'bg-white/10 text-white/50'
+                                            <span className={`text-[10px] uppercase tracking-[0.2em] px-2 py-1 font-bold ${isActive ? 'bg-accent-yellow text-black' : 'bg-white/10 text-white/50'
                                                 }`}>
                                                 Level 0{vehicle.id} /// {vehicle.status}
                                             </span>
@@ -249,7 +249,7 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
                                         </h2>
 
                                         {/* Subtitle / Model */}
-                                        <div className={`text-sm md:text-base font-mono border-l-2 pl-4 mb-6 ${isActive ? 'text-white border-accent-yellow' : 'text-zinc-500 border-zinc-700'
+                                        <div className={`text-sm md:text-base font-bold border-l-2 pl-4 mb-6 ${isActive ? 'text-white border-accent-yellow' : 'text-zinc-500 border-zinc-700'
                                             }`}>
                                             {vehicle.model}
                                         </div>
@@ -272,7 +272,7 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
                                                 </div>
 
                                                 <div className="flex justify-between items-end mb-3">
-                                                    <span className="text-2xl font-mono font-bold text-white">{formatCurrency(currentFund)}</span>
+                                                    <span className="text-2xl font-bold text-white">{formatCurrency(currentFund)}</span>
                                                     <span className="text-xs text-text-muted mb-1">{fundPercent.toFixed(0)}%</span>
                                                 </div>
 
@@ -313,12 +313,12 @@ export const VehicleRoadmap: React.FC<VehicleRoadmapProps> = ({ currentMonthlyIn
                                                 <div className="flex items-center gap-4 bg-white/5 p-3 rounded-lg border border-white/10">
                                                     <div className="flex-1">
                                                         <p className="text-[10px] text-text-muted uppercase">Renda Conquistada</p>
-                                                        <p className="text-lg font-mono font-bold text-white">{formatCurrency(currentMonthlyIncome)}</p>
+                                                        <p className="text-lg font-bold text-white">{formatCurrency(currentMonthlyIncome)}</p>
                                                     </div>
                                                     <div className="h-8 w-px bg-white/10"></div>
                                                     <div className="flex-1">
                                                         <p className="text-[10px] text-text-muted uppercase">Meta de Renda</p>
-                                                        <p className="text-lg font-mono font-bold text-text-secondary">{formatCurrency(maintenanceCost)}</p>
+                                                        <p className="text-lg font-bold text-text-secondary">{formatCurrency(maintenanceCost)}</p>
                                                     </div>
                                                 </div>
 
