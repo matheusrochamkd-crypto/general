@@ -559,7 +559,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
         return (
             <div
-                className={`flex-1 ${theme.bg} overflow-y-auto p-4 select-none`}
+                className={`flex-1 ${theme.bg} overflow-y-auto select-none flex flex-col`}
                 onMouseLeave={() => {
                     if (isDragging) {
                         setIsDragging(false);
@@ -569,9 +569,18 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 }}
                 onMouseUp={handleMouseUp}
             >
-                <div className="grid grid-cols-7 gap-1 h-full min-h-[600px] auto-rows-fr">
-                    {WEEKDAYS.map(d => <div key={d} className={`text-center text-sm ${theme.textSec} py-2`}>{d}</div>)}
+                {/* Header Row */}
+                <div className={`grid grid-cols-7 border-b ${theme.border}`}>
+                    {WEEKDAYS.map(d => (
+                        <div key={d} className={`text-center text-xs font-medium uppercase tracking-wider ${theme.textSec} py-2 border-r ${theme.borderSec} last:border-r-0`}>
+                            {d}
+                        </div>
+                    ))}
+                </div>
 
+                {/* Grid Rows */}
+                <div className="flex-1 grid grid-cols-7 auto-rows-fr">
+                    {/* Note: using auto-rows-fr fills height, but we might want min-height */}
                     {allDays.map(({ date, isCurrentMonth }, i) => {
                         const dateStr = date.toISOString().split('T')[0];
                         const dayEvents = getEventsForDate(dateStr);
@@ -579,29 +588,48 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         const dayNum = date.getDate();
                         const isSelected = isInSelection(date);
 
+                        // Format: "1 mar." if day 1, else "2"
+                        let dateLabel = String(dayNum);
+                        if (dayNum === 1) {
+                            const mStr = date.toLocaleString('pt-BR', { month: 'short' }).replace('.', '');
+                            dateLabel = `${dayNum} ${mStr}.`;
+                        }
+
+                        // Border logic: right border for all except last col, bottom border for all
+                        // Actually standard grid gap-px with background color works best for borders, but we are using manual borders
+                        // Let's rely on standard Tailwind borders on cells
+
                         return (
                             <div
                                 key={i}
-                                className={`min-h-[100px] ${theme.bgSec} border ${theme.borderSec} p-2 transition flex flex-col gap-1 
-                                    ${isDarkMode ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'} 
-                                    ${isToday && isCurrentMonth ? 'bg-blue-500/10 border-blue-500/30' : ''}
-                                    ${!isCurrentMonth ? 'opacity-30' : ''}
-                                    ${isSelected ? 'bg-blue-500/20 border-blue-500' : ''}
+                                className={`
+                                    min-h-[100px] border-b border-r ${theme.borderSec} p-1 transition flex flex-col gap-1 relative group
+                                    ${(i + 1) % 7 === 0 ? 'border-r-0' : ''} /* Remove right border for last column */
+                                    ${!isCurrentMonth ? (isDarkMode ? 'bg-[#000000]/40' : 'bg-gray-50/50') : theme.bg}
+                                    ${isSelected ? 'bg-blue-500/10' : ''}
                                 `}
                                 onMouseDown={() => handleMouseDown(date)}
                                 onMouseEnter={() => handleMouseEnter(date)}
                             >
-                                <div
-                                    className={`text-sm font-medium mb-1 cursor-pointer w-fit px-1 rounded ${theme.hover} 
-                                        ${isToday && isCurrentMonth ? 'text-blue-500' : (isCurrentMonth ? theme.textSec : theme.textSec)}
-                                    `}
-                                    onClick={(e) => {
-                                        // Stop propagation so drag doesn't conflict if we clicked strictly on number? 
-                                        // Actually better to let drag handle everything.
-                                        // e.stopPropagation(); 
-                                    }}
-                                >
-                                    {dayNum}
+                                {/* Date Label */}
+                                <div className="flex justify-center mb-1">
+                                    <div
+                                        className={`text-xs font-semibold cursor-pointer px-1.5 py-0.5 rounded-full transition-colors 
+                                            ${isToday
+                                                ? 'bg-[#1A73E8] text-white'
+                                                : (!isCurrentMonth ? 'text-gray-500' : theme.text)
+                                            }
+                                            ${!isToday && isCurrentMonth ? theme.hover : ''}
+                                        `}
+                                        onClick={(e) => {
+                                            // Optional: click date to go to day view
+                                            // Let's disable stopPropagation here to allow drag start even on header?
+                                            // Nah, keep it specific
+                                            // e.stopPropagation(); 
+                                        }}
+                                    >
+                                        {dateLabel}
+                                    </div>
                                 </div>
 
                                 {dayEvents.slice(0, 4).map(event => (
@@ -611,14 +639,19 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                             e.stopPropagation(); // prevent triggering new event logic
                                             openEditModal(e, event);
                                         }}
-                                        className={`text-[10px] sm:text-xs font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].border ? 'border-l-2 ' + EVENT_COLORS[event.type].border : ''} text-white hover:brightness-110 transition-all cursor-pointer truncate`}
+                                        className={`text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm leading-tight
+                                            ${EVENT_COLORS[event.type].bg} 
+                                            ${EVENT_COLORS[event.type].border ? 'border-l-[3px] ' + EVENT_COLORS[event.type].border : ''} 
+                                            text-white hover:brightness-110 transition-all cursor-pointer truncate`}
                                     >
-                                        {event.startTime && <span className="opacity-75">{event.startTime}</span>}
+                                        {event.startTime && <span className="opacity-75 text-[9px] mr-1">{event.startTime}</span>}
                                         <span className="truncate">{event.title}</span>
                                     </div>
                                 ))}
                                 {dayEvents.length > 4 && (
-                                    <div className={`text-[10px] ${theme.textSec} px-1`}>+{dayEvents.length - 4} mais</div>
+                                    <div className={`text-[10px] ${theme.textSec} px-1 font-medium hover:text-blue-400 cursor-pointer`}>
+                                        +{dayEvents.length - 4} mais
+                                    </div>
                                 )}
                             </div>
                         );
