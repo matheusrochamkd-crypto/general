@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { MonthData } from '../types';
+import { RotatingImage } from './RotatingImage';
 import { ChevronDown, Calendar, Car, Trophy, TrendingUp, Radio, Scroll, FileText } from 'lucide-react';
 
 interface SidebarProps {
@@ -205,10 +206,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
 
       {/* Large Bottom Logo */}
       <div className="mt-auto px-4 pb-4 flex justify-center opacity-80">
-        <img
-          src="/sidebar-ghost.jpg"
-          alt="Operador Ghost"
-          className="w-48 h-48 object-cover rounded-2xl drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500"
+        <RotatingImage
+          images={[
+            "/propósito/WhatsApp Image 2025-12-28 at 20.41.55.jpg",
+            "/propósito/WhatsApp Image 2025-12-31 at 20.31.01.jpg",
+            "/propósito/WhatsApp Image 2025-12-31 at 20.39.32.jpg"
+          ]}
+          alt="Meu Propósito"
+          className="w-48 h-48 rounded-2xl drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500"
+          interval={5000}
         />
       </div>
 
