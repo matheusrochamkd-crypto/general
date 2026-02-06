@@ -29,10 +29,10 @@ const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Jul
 
 // Colors for events
 const EVENT_COLORS = {
-    MEETING: { bg: 'bg-blue-900/80', text: 'text-white', border: 'border-blue-700' },
-    TASK: { bg: 'bg-emerald-900/80', text: 'text-white', border: 'border-emerald-700' },
-    REMINDER: { bg: 'bg-amber-900/80', text: 'text-white', border: 'border-amber-700' },
-    EVENT: { bg: 'bg-cyan-900/80', text: 'text-white', border: 'border-cyan-700' },
+    MEETING: { bg: 'bg-[#1E1E1E]', text: 'text-white', border: 'border-blue-500' },
+    TASK: { bg: 'bg-[#1E1E1E]', text: 'text-white', border: 'border-emerald-500' },
+    REMINDER: { bg: 'bg-[#1E1E1E]', text: 'text-white', border: 'border-amber-500' },
+    EVENT: { bg: 'bg-[#1E1E1E]', text: 'text-white', border: 'border-cyan-500' },
 };
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
@@ -377,16 +377,17 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         }
 
                                         const bgColor = EVENT_COLORS[event.type].bg;
+                                        const borderColor = EVENT_COLORS[event.type].border;
 
                                         return (
                                             <div
                                                 key={event.id}
                                                 onClick={(e) => openEditModal(e, event)}
-                                                className={`absolute left-0.5 right-1 rounded px-2 py-1 text-xs cursor-pointer overflow-hidden border-l-2 border-white/30 hover:brightness-110 shadow-lg ${bgColor}`}
+                                                className={`absolute left-0.5 right-1 rounded px-2 py-1 text-sm font-semibold cursor-pointer overflow-hidden border-l-4 ${borderColor} hover:brightness-110 shadow-lg ${bgColor}`}
                                                 style={{ top: `${top}px`, height: `${height}px` }}
                                             >
-                                                <div className="font-semibold truncate">{event.title}</div>
-                                                <div className="truncate opacity-80">{event.startTime} - {event.endTime}</div>
+                                                <div className="font-bold truncate">{event.title}</div>
+                                                <div className="truncate opacity-80 text-xs">{event.startTime} - {event.endTime}</div>
                                                 {event.recurrence === 'WEEKLY' && <Repeat className="w-3 h-3 absolute top-1 right-1 opacity-50" />}
                                             </div>
                                         );
@@ -454,10 +455,10 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         <div
                                             key={ev.id}
                                             onClick={(e) => openEditModal(e, ev)}
-                                            className={`text-[11px] px-2 py-1 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-2 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all cursor-pointer`}
+                                            className={`text-sm font-semibold px-2 py-1.5 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-4 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all cursor-pointer`}
                                         >
-                                            {ev.startTime && <span className="font-sans font-bold text-xs opacity-100">{ev.startTime}</span>}
-                                            <span className="truncate font-medium flex-1">{ev.title}</span>
+                                            {ev.startTime && <span className="font-sans font-bold text-xs opacity-90 leading-none">{ev.startTime}</span>}
+                                            <span className="truncate font-bold flex-1 leading-none pt-0.5">{ev.title}</span>
                                             {ev.recurrence === 'WEEKLY' && <Repeat className="w-2 h-2 opacity-70 ml-1" />}
                                         </div>
                                     ))}
