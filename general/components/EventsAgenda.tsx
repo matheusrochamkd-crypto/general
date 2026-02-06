@@ -503,9 +503,14 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         const lastDay = new Date(year, month + 1, 0);
         const startDay = firstDay.getDay(); // 0-6
         const daysInMonth = lastDay.getDate();
+        // Calculate needed slots dynamically
+        // We want to fill complete weeks (rows of 7)
+        // Most months fit in 5 rows (35 days), some need 6 (42 days)
+        // We calculate 'used' slots (blanks + days) and round up to next multiple of 7
+        const usedSlots = startDay + daysInMonth;
+        const totalSlots = Math.ceil(usedSlots / 7) * 7;
 
-        const totalSlots = 42;
-
+        // Days arrays
         const prevMonthDays = Array.from({ length: startDay }, (_, i) => {
             const d = new Date(year, month, 0 - (startDay - 1 - i));
             return { date: d, isCurrentMonth: false };
@@ -516,8 +521,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             return { date: d, isCurrentMonth: true };
         });
 
-        const used = prevMonthDays.length + currentMonthDays.length;
-        const nextMonthDays = Array.from({ length: totalSlots - used }, (_, i) => {
+        const currentUsed = prevMonthDays.length + currentMonthDays.length;
+        const nextMonthDays = Array.from({ length: totalSlots - currentUsed }, (_, i) => {
             const d = new Date(year, month + 1, i + 1);
             return { date: d, isCurrentMonth: false };
         });
