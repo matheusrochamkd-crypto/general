@@ -5,13 +5,15 @@ interface RotatingImageProps {
     interval?: number;
     className?: string;
     alt?: string;
+    objectFit?: "cover" | "contain" | "fill" | "none" | "scale-down";
 }
 
 export const RotatingImage: React.FC<RotatingImageProps> = ({
     images,
     interval = 5000,
     className = "",
-    alt = "Rotating image"
+    alt = "Rotating image",
+    objectFit = "cover"
 }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
     const [opacity, setOpacity] = useState(1);
@@ -42,8 +44,8 @@ export const RotatingImage: React.FC<RotatingImageProps> = ({
             <img
                 src={images[currentIndex]}
                 alt={alt}
-                className={`w-full h-full object-cover transition-opacity duration-500 ease-in-out`}
-                style={{ opacity: opacity }}
+                className={`w-full h-full transition-opacity duration-500 ease-in-out`}
+                style={{ opacity: opacity, objectFit }}
             />
         </div>
     );

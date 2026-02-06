@@ -213,8 +213,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
             "/propósito/WhatsApp Image 2025-12-31 at 20.39.32.jpg"
           ]}
           alt="Meu Propósito"
-          className="w-48 h-48 rounded-2xl drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500"
+          className="w-48 h-48 rounded-2xl drop-shadow-2xl grayscale hover:grayscale-0 transition-all duration-500 bg-black/50"
           interval={5000}
+          objectFit="contain"
         />
       </div>
 
