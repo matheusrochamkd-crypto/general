@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { ArrowLeft, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, AlignLeft, X, Trash2, CheckCircle2, Circle, MoreVertical, Search, Settings, HelpCircle, Menu, Repeat } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { RotatingImage } from './RotatingImage';
 import { supabase } from '../lib/supabaseClient';
 
 interface EventsAgendaProps {
@@ -507,6 +508,24 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 {Math.max(1, (i - 4) % 31)}
                             </div>
                         ))}
+                    </div>
+
+                    {/* Purpose Images Rotation */}
+                    <div className="flex-1 flex flex-col justify-end p-4 pb-6">
+                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 text-center">
+                            Proposta da Missão
+                        </div>
+                        <RotatingImage
+                            images={[
+                                "/propósito/WhatsApp Image 2025-12-28 at 20.41.55.jpg",
+                                "/propósito/WhatsApp Image 2025-12-31 at 20.31.01.jpg",
+                                "/propósito/WhatsApp Image 2025-12-31 at 20.39.32.jpg"
+                            ]}
+                            alt="Meu Propósito"
+                            className="w-full aspect-[3/4] rounded-xl overflow-hidden shadow-2xl border border-white/5 opacity-80 hover:opacity-100 transition-opacity duration-300"
+                            interval={5000}
+                            objectFit="contain"
+                        />
                     </div>
                 </div>
 
