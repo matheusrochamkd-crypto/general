@@ -120,10 +120,10 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             border: 'border-cyan-500/50',
             bg: 'bg-cyan-500/10',
             items: [
-                { id: 'aurora', text: 'Ver a Aurora Boreal', subtitle: 'Caçar as luzes do norte', image: 'https://images.unsplash.com/photo-1579033461380-adb47c3eb938?auto=format&fit=crop&w=800&q=80' }, // Green Aurora Night
-                { id: 'volcano', text: 'Ver um Vulcão Ativo', subtitle: 'Sentir a terra viva', image: 'https://images.unsplash.com/photo-1462331940185-00029557301c?auto=format&fit=crop&w=800&q=80' }, // Active Volcano
-                { id: 'snow', text: 'Ver Neve real', subtitle: 'O silêncio do branco', image: 'https://images.unsplash.com/photo-1517299321609-52687d1bc555?auto=format&fit=crop&w=800&q=80' }, // Winter Snow Forest
-                { id: 'ski', text: 'Esquiar', subtitle: 'Dominar a descida', image: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?auto=format&fit=crop&w=800&q=80' } // Skiing (confirmed working)
+                { id: 'aurora', text: 'Ver a Aurora Boreal', subtitle: 'Caçar as luzes do norte', image: '/Lista de Vida/neve.jpg' },
+                { id: 'volcano', text: 'Ver um Vulcão Ativo', subtitle: 'Sentir a terra viva', image: '/Lista de Vida/Vulcão.jpg' },
+                { id: 'snow', text: 'Ver Neve real', subtitle: 'O silêncio do branco', image: '/Lista de Vida/neve.jpg' },
+                { id: 'ski', text: 'Esquiar', subtitle: 'Dominar a descida', image: '/Lista de Vida/esquiar.jpg' }
             ]
         },
         {
@@ -135,8 +135,8 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             border: 'border-yellow-500/50',
             bg: 'bg-yellow-500/10',
             items: [
-                { id: 'pico_parana', text: 'Subir o Pico Paraná', subtitle: 'O teto do Sul', image: 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?auto=format&fit=crop&w=800&q=80' }, // Dramatic Mountains
-                { id: 'buraco_padre', text: 'Explorar o Buraco do Padre', subtitle: 'A furna e a cachoeira', image: 'https://images.unsplash.com/photo-1432405972618-c60b0225b8f9?auto=format&fit=crop&w=800&q=80' } // Waterfall
+                { id: 'pico_parana', text: 'Subir o Pico Paraná', subtitle: 'O teto do Sul', image: '/Lista de Vida/Pico Parana.jpg' },
+                { id: 'buraco_padre', text: 'Explorar o Buraco do Padre', subtitle: 'A furna e a cachoeira', image: '/Lista de Vida/cachoeira-do-buraco-do-padre.jpg' }
             ]
         },
         {
@@ -148,9 +148,9 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             border: 'border-amber-500/50',
             bg: 'bg-amber-500/10',
             items: [
-                { id: 'museu_feb', text: 'Museu do Expedicionário', subtitle: 'Honrar a FEB', image: 'https://images.unsplash.com/photo-1599554316688-21d72605335d?auto=format&fit=crop&w=800&q=80' }, // War History
-                { id: 'museu_holocausto', text: 'Museu do Holocausto', subtitle: 'Entender a humanidade', image: 'https://images.unsplash.com/photo-1551189671-d68b9283a811?auto=format&fit=crop&w=800&q=80' }, // Museum
-                { id: 'museu_atilio', text: 'Museu Atílio Rocco', subtitle: 'Minhas raízes em SJP', image: 'https://images.unsplash.com/photo-1549144342-63b72f10256d?auto=format&fit=crop&w=800&q=80' } // Vintage
+                { id: 'museu_feb', text: 'Museu do Expedicionário', subtitle: 'Honrar a FEB', image: '/Lista de Vida/Museu do Expedicionário.jpg' },
+                { id: 'museu_holocausto', text: 'Museu do Holocausto', subtitle: 'Entender a humanidade', image: '/Lista de Vida/museu do holocausto.jpg' },
+                { id: 'museu_atilio', text: 'Museu Atílio Rocco', subtitle: 'Minhas raízes em SJP', image: '/Lista de Vida/Museu Atílio Rocco.jpg' }
             ]
         }
     ];
@@ -204,35 +204,24 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
                                     return (
                                         <div
                                             key={item.id}
-                                            onClick={() => toggleItem(item.id)}
-                                            className="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer border border-white/10 hover:border-white/30 transition-all duration-500"
+                                            className="group relative aspect-[3/4] rounded-2xl overflow-hidden cursor-default border border-white/10 hover:border-white/30 transition-all duration-500"
                                         >
                                             {/* Background Image */}
                                             <div className="absolute inset-0">
                                                 <img
                                                     src={item.image}
                                                     alt={item.text}
-                                                    className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110 ${isChecked ? 'grayscale-[50%]' : ''}`}
+                                                    className={`w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110`}
                                                 />
                                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent opacity-80 group-hover:opacity-60 transition-opacity duration-300" />
-
-                                                {/* Status Overlay */}
-                                                {isChecked && (
-                                                    <div className="absolute inset-0 bg-black/40 backdrop-blur-[2px] flex items-center justify-center animate-in fade-in duration-300">
-                                                        <div className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 px-4 py-2 rounded-full flex items-center gap-2 shadow-2xl backdrop-blur-md">
-                                                            <CheckCircle2 className="w-5 h-5 fill-emerald-500/20" />
-                                                            <span className="text-xs font-bold uppercase tracking-widest">Concluído</span>
-                                                        </div>
-                                                    </div>
-                                                )}
                                             </div>
 
                                             {/* Content */}
                                             <div className="absolute inset-x-0 bottom-0 p-6 z-10 translate-y-2 group-hover:translate-y-0 transition-transform duration-300">
-                                                <h3 className={`text-xl font-bold leading-tight mb-2 text-white group-hover:text-indigo-300 transition-colors ${isChecked ? 'opacity-50' : ''}`}>
+                                                <h3 className={`text-xl font-bold leading-tight mb-2 text-white group-hover:text-cyan-300 transition-colors`}>
                                                     {item.text}
                                                 </h3>
-                                                <p className={`text-xs text-gray-300 uppercase tracking-wider font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75 ${isChecked ? 'opacity-50' : ''}`}>
+                                                <p className={`text-xs text-gray-300 uppercase tracking-wider font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 delay-75`}>
                                                     {item.subtitle}
                                                 </p>
                                             </div>

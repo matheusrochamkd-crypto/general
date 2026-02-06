@@ -29,10 +29,10 @@ const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Jul
 
 // Colors for events
 const EVENT_COLORS = {
-    MEETING: { bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-400' },
-    TASK: { bg: 'bg-emerald-600', text: 'text-white', border: 'border-emerald-400' },
-    REMINDER: { bg: 'bg-amber-600', text: 'text-white', border: 'border-amber-400' },
-    EVENT: { bg: 'bg-cyan-600', text: 'text-black', border: 'border-cyan-400' },
+    MEETING: { bg: 'bg-blue-900/80', text: 'text-white', border: 'border-blue-700' },
+    TASK: { bg: 'bg-emerald-900/80', text: 'text-white', border: 'border-emerald-700' },
+    REMINDER: { bg: 'bg-amber-900/80', text: 'text-white', border: 'border-amber-700' },
+    EVENT: { bg: 'bg-cyan-900/80', text: 'text-white', border: 'border-cyan-700' },
 };
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
