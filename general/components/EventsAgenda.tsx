@@ -522,9 +522,9 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 "/propósito/WhatsApp Image 2025-12-31 at 20.39.32.jpg"
                             ]}
                             alt="Meu Propósito"
-                            className="w-full aspect-[3/4] rounded-xl overflow-hidden shadow-2xl border border-white/5 opacity-80 hover:opacity-100 transition-opacity duration-300"
+                            className="w-full aspect-[9/16] rounded-xl overflow-hidden shadow-2xl border border-white/5 opacity-80 hover:opacity-100 transition-opacity duration-300"
                             interval={5000}
-                            objectFit="contain"
+                            objectFit="cover"
                         />
                     </div>
                 </div>
