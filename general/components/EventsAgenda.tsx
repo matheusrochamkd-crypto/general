@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, AlignLeft, X, Trash2, CheckCircle2, Circle, MoreVertical, Search, Settings, HelpCircle, Menu, Repeat } from 'lucide-react';
+import { ArrowLeft, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, AlignLeft, X, Trash2, CheckCircle2, Circle, MoreVertical, Menu, Repeat, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { RotatingImage } from './RotatingImage';
 import { supabase } from '../lib/supabaseClient';
@@ -42,8 +42,26 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [view, setView] = useState<ViewType>('MONTH');
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const [isDarkMode, setIsDarkMode] = useState(true);
     const lastScrollTime = useRef(0);
     const containerRef = useRef<HTMLDivElement>(null);
+
+    // Drag Selection State
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState<Date | null>(null);
+    const [dragEnd, setDragEnd] = useState<Date | null>(null);
+
+    // Theme Helpers
+    const theme = {
+        bg: isDarkMode ? 'bg-black' : 'bg-white',
+        bgSec: isDarkMode ? 'bg-[#0A0A0A]' : 'bg-gray-50',
+        bgTert: isDarkMode ? 'bg-[#1E1E1E]' : 'bg-white',
+        text: isDarkMode ? 'text-white' : 'text-gray-900',
+        textSec: isDarkMode ? 'text-gray-400' : 'text-gray-500',
+        border: isDarkMode ? 'border-white/10' : 'border-black/10',
+        borderSec: isDarkMode ? 'border-white/5' : 'border-black/5',
+        hover: isDarkMode ? 'hover:bg-white/10' : 'hover:bg-black/5',
+    };
 
     // Modal State
     const [showModal, setShowModal] = useState(false);
@@ -270,9 +288,18 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     };
 
     // Modal Handlers
-    const openNewEventModal = (start?: Date, hour?: number) => {
-        const d = start || new Date();
-        const dateStr = d.toISOString().split('T')[0];
+    const openNewEventModal = (startDate?: Date, hour?: number, endDate?: Date) => {
+        const d = startDate || new Date();
+        // Format YYYY-MM-DD local
+        const formatD = (date: Date) => {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${day}`;
+        };
+
+        const dateStr = formatD(d);
+        const endDateStr = endDate ? formatD(endDate) : dateStr;
 
         // Round to nearest hour if generic open
         const h = hour !== undefined ? hour : new Date().getHours();
@@ -283,12 +310,19 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setFormTitle('');
         setFormDesc('');
         setFormStartDate(dateStr);
-        setFormEndDate(dateStr);
+        setFormEndDate(endDateStr);
         setFormStartTime(`${hStr}:00`);
         setFormEndTime(`${nextHStr}:00`);
         setFormType('EVENT');
         setFormRecurrence('NONE');
-        setFormAllDay(false);
+
+        // If start != end, assume it's multi-day or all day
+        if (endDate && endDate.getTime() !== d.getTime()) {
+            setFormAllDay(true);
+        } else {
+            setFormAllDay(false);
+        }
+
         setShowModal(true);
     };
 
@@ -338,17 +372,17 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     // Sub-components
     const WeeklyGrid = () => {
         return (
-            <div className="flex flex-col h-full overflow-hidden bg-[#121212]">
+            <div className={`flex flex-col h-full overflow-hidden ${theme.bg}`}>
                 {/* Header Row: Days */}
-                <div className="flex border-b border-white/10 ml-14">
+                <div className={`flex border-b ${theme.border} ml-14`}>
                     {viewDates.map((date, i) => {
                         const isToday = date.toDateString() === new Date().toDateString();
                         return (
-                            <div key={i} className="flex-1 py-3 text-center border-l border-white/5">
-                                <span className={`text-xs font-semibold uppercase ${isToday ? 'text-blue-400' : 'text-gray-400'}`}>
+                            <div key={i} className={`flex-1 py-3 text-center border-l ${theme.borderSec}`}>
+                                <span className={`text-xs font-semibold uppercase ${isToday ? 'text-blue-500' : theme.textSec}`}>
                                     {WEEKDAYS[date.getDay()]}
                                 </span>
-                                <div className={`w-8 h-8 mx-auto mt-1 flex items-center justify-center rounded-full text-xl ${isToday ? 'bg-blue-600 text-white' : 'text-gray-200'}`}>
+                                <div className={`w-8 h-8 mx-auto mt-1 flex items-center justify-center rounded-full text-xl ${isToday ? 'bg-blue-600 text-white' : theme.text}`}>
                                     {date.getDate()}
                                 </div>
                             </div>
@@ -359,8 +393,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 {/* Time Grid */}
                 <div className="flex-1 overflow-y-auto relative custom-scrollbar">
                     {/* All Day Row */}
-                    <div className="flex border-b border-white/10 min-h-[40px]">
-                        <div className="w-14 text-[10px] text-gray-500 flex items-center justify-center border-r border-white/10 bg-[#0A0A0A]">
+                    <div className={`flex border-b ${theme.border} min-h-[40px]`}>
+                        <div className={`w-14 text-[10px] ${theme.textSec} flex items-center justify-center border-r ${theme.border} ${theme.bgSec}`}>
                             DIA TODO
                         </div>
                         {viewDates.map((date, dayIdx) => {
@@ -368,7 +402,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                             const dayEvents = getEventsForDate(dateStr).filter(e => e.allDay);
 
                             return (
-                                <div key={dayIdx} className="flex-1 border-l border-white/5 p-1 flex flex-col gap-1">
+                                <div key={dayIdx} className={`flex-1 border-l ${theme.borderSec} p-1 flex flex-col gap-1`}>
                                     {dayEvents.map(event => (
                                         <div
                                             key={event.id}
@@ -387,7 +421,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     <div className="flex min-h-[1440px]"> {/* 24h * 60px/h */}
 
                         {/* Time Labels */}
-                        <div className="w-14 flex-shrink-0 flex flex-col items-end pr-2 text-xs text-gray-500 bg-[#0A0A0A] border-r border-white/10 pt-2 sticky left-0 z-10">
+                        <div className={`w-14 flex-shrink-0 flex flex-col items-end pr-2 text-xs ${theme.textSec} ${theme.bgSec} border-r ${theme.border} pt-2 sticky left-0 z-10`}>
                             {Array.from({ length: 24 }).map((_, i) => (
                                 <div key={i} className="h-[60px] relative -top-3">
                                     {i === 0 ? '' : `${i}:00`}
@@ -403,7 +437,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                             return (
                                 <div
                                     key={dayIdx}
-                                    className="flex-1 border-l border-white/5 relative group hover:bg-white/[0.01]"
+                                    className={`flex-1 border-l ${theme.borderSec} relative group ${isDarkMode ? 'hover:bg-white/[0.01]' : 'hover:bg-black/[0.01]'}`}
                                     onClick={(e) => {
                                         // Calculate hour clicked
                                         const rect = e.currentTarget.getBoundingClientRect();
@@ -414,7 +448,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 >
                                     {/* Horizontal Lines for Hours */}
                                     {Array.from({ length: 24 }).map((_, h) => (
-                                        <div key={h} className="absolute w-full h-[1px] bg-white/[0.03]" style={{ top: `${h * 60}px` }} />
+                                        <div key={h} className={`absolute w-full h-[1px] ${isDarkMode ? 'bg-white/[0.03]' : 'bg-black/[0.03]'}`} style={{ top: `${h * 60}px` }} />
                                     ))}
 
                                     {/* Events */}
@@ -463,7 +497,6 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     };
 
     const MonthGrid = () => {
-        // Simple Month View Logic
         const year = currentDate.getFullYear();
         const month = currentDate.getMonth();
         const firstDay = new Date(year, month, 1);
@@ -471,60 +504,122 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         const startDay = firstDay.getDay(); // 0-6
         const daysInMonth = lastDay.getDate();
 
-        // Blanks before
-        const blanks = Array.from({ length: startDay });
+        const totalSlots = 42;
 
-        // Days
-        const monthDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+        const prevMonthDays = Array.from({ length: startDay }, (_, i) => {
+            const d = new Date(year, month, 0 - (startDay - 1 - i));
+            return { date: d, isCurrentMonth: false };
+        });
+
+        const currentMonthDays = Array.from({ length: daysInMonth }, (_, i) => {
+            const d = new Date(year, month, i + 1);
+            return { date: d, isCurrentMonth: true };
+        });
+
+        const used = prevMonthDays.length + currentMonthDays.length;
+        const nextMonthDays = Array.from({ length: totalSlots - used }, (_, i) => {
+            const d = new Date(year, month + 1, i + 1);
+            return { date: d, isCurrentMonth: false };
+        });
+
+        const allDays = [...prevMonthDays, ...currentMonthDays, ...nextMonthDays];
+
+        // Drag Handler Helpers
+        const handleMouseDown = (date: Date) => {
+            setIsDragging(true);
+            setDragStart(date);
+            setDragEnd(date);
+        };
+
+        const handleMouseEnter = (date: Date) => {
+            if (isDragging) {
+                setDragEnd(date);
+            }
+        };
+
+        const handleMouseUp = () => {
+            if (isDragging && dragStart && dragEnd) {
+                const start = dragStart < dragEnd ? dragStart : dragEnd;
+                const end = dragStart < dragEnd ? dragEnd : dragStart;
+                // If it's a single click (start == end), allow standard behavior (do nothing here, let onClick handle or unify?)
+                // Actually, let's unify.
+                openNewEventModal(start, undefined, end);
+            }
+            setIsDragging(false);
+            setDragStart(null);
+            setDragEnd(null);
+        };
+
+        const isInSelection = (date: Date) => {
+            if (!isDragging || !dragStart || !dragEnd) return false;
+            const start = dragStart < dragEnd ? dragStart : dragEnd;
+            const end = dragStart < dragEnd ? dragEnd : dragStart;
+            return date >= start && date <= end;
+        };
 
         return (
-            <div className="flex-1 bg-[#121212] overflow-y-auto p-4">
-                <div className="grid grid-cols-7 gap-1 h-full min-h-[600px]">
-                    {WEEKDAYS.map(d => <div key={d} className="text-center text-sm text-gray-500 py-2">{d}</div>)}
+            <div
+                className={`flex-1 ${theme.bg} overflow-y-auto p-4 select-none`}
+                onMouseLeave={() => {
+                    if (isDragging) {
+                        setIsDragging(false);
+                        setDragStart(null);
+                        setDragEnd(null);
+                    }
+                }}
+                onMouseUp={handleMouseUp}
+            >
+                <div className="grid grid-cols-7 gap-1 h-full min-h-[600px] auto-rows-fr">
+                    {WEEKDAYS.map(d => <div key={d} className={`text-center text-sm ${theme.textSec} py-2`}>{d}</div>)}
 
-                    {blanks.map((_, i) => <div key={`blank-${i}`} className="bg-[#0A0A0A]" />)}
-
-                    {monthDays.map(day => {
-                        const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                    {allDays.map(({ date, isCurrentMonth }, i) => {
+                        const dateStr = date.toISOString().split('T')[0];
                         const dayEvents = getEventsForDate(dateStr);
-                        const isToday = new Date().toISOString().split('T')[0] === dateStr;
+                        const isToday = new Date().toDateString() === date.toDateString();
+                        const dayNum = date.getDate();
+                        const isSelected = isInSelection(date);
 
                         return (
                             <div
-                                key={day}
-                                className={`min-h-[120px] bg-[#0A0A0A] border border-white/5 p-2 transition hover:bg-white/[0.03] flex flex-col gap-1 ${isToday ? 'bg-blue-900/10 border-blue-500/30' : ''}`}
-                                onClick={(e) => {
-                                    // Empty space click -> Create Event
-                                    // Prevent if clicking on children (handled by stopPropagation there, but just in case)
-                                    if (e.target === e.currentTarget) {
-                                        openNewEventModal(new Date(year, month, day));
-                                    }
-                                }}
+                                key={i}
+                                className={`min-h-[100px] ${theme.bgSec} border ${theme.borderSec} p-2 transition flex flex-col gap-1 
+                                    ${isDarkMode ? 'hover:bg-white/[0.03]' : 'hover:bg-black/[0.02]'} 
+                                    ${isToday && isCurrentMonth ? 'bg-blue-500/10 border-blue-500/30' : ''}
+                                    ${!isCurrentMonth ? 'opacity-30' : ''}
+                                    ${isSelected ? 'bg-blue-500/20 border-blue-500' : ''}
+                                `}
+                                onMouseDown={() => handleMouseDown(date)}
+                                onMouseEnter={() => handleMouseEnter(date)}
                             >
                                 <div
-                                    className={`text-sm font-medium mb-1 cursor-pointer w-fit px-1 rounded hover:bg-white/10 ${isToday ? 'text-blue-400' : 'text-gray-400'}`}
+                                    className={`text-sm font-medium mb-1 cursor-pointer w-fit px-1 rounded ${theme.hover} 
+                                        ${isToday && isCurrentMonth ? 'text-blue-500' : (isCurrentMonth ? theme.textSec : theme.textSec)}
+                                    `}
                                     onClick={(e) => {
-                                        e.stopPropagation();
-                                        setCurrentDate(new Date(year, month, day));
-                                        setView('DAY'); // Drill down
+                                        // Stop propagation so drag doesn't conflict if we clicked strictly on number? 
+                                        // Actually better to let drag handle everything.
+                                        // e.stopPropagation(); 
                                     }}
                                 >
-                                    {day}
+                                    {dayNum}
                                 </div>
-                                <div className="space-y-1 flex-1" onClick={() => openNewEventModal(new Date(year, month, day))}>
-                                    {dayEvents.slice(0, 5).map(ev => (
-                                        <div
-                                            key={ev.id}
-                                            onClick={(e) => openEditModal(e, ev)}
-                                            className={`text-sm font-semibold px-2 py-1.5 rounded flex items-center gap-2 shadow-sm ${EVENT_COLORS[ev.type].bg} ${EVENT_COLORS[ev.type].border ? 'border-l-4 ' + EVENT_COLORS[ev.type].border : ''} text-white hover:brightness-110 transition-all cursor-pointer`}
-                                        >
-                                            {ev.startTime && <span className="font-sans font-bold text-xs opacity-90 leading-none">{ev.startTime}</span>}
-                                            <span className="truncate font-bold flex-1 leading-none pt-0.5">{ev.title}</span>
-                                            {ev.recurrence === 'WEEKLY' && <Repeat className="w-2 h-2 opacity-70 ml-1" />}
-                                        </div>
-                                    ))}
-                                    {dayEvents.length > 5 && <div className="text-[10px] text-gray-500 pl-1">+{dayEvents.length - 5} mais</div>}
-                                </div>
+
+                                {dayEvents.slice(0, 4).map(event => (
+                                    <div
+                                        key={event.id}
+                                        onClick={(e) => {
+                                            e.stopPropagation(); // prevent triggering new event logic
+                                            openEditModal(e, event);
+                                        }}
+                                        className={`text-[10px] sm:text-xs font-semibold px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm ${EVENT_COLORS[event.type].bg} ${EVENT_COLORS[event.type].border ? 'border-l-2 ' + EVENT_COLORS[event.type].border : ''} text-white hover:brightness-110 transition-all cursor-pointer truncate`}
+                                    >
+                                        {event.startTime && <span className="opacity-75">{event.startTime}</span>}
+                                        <span className="truncate">{event.title}</span>
+                                    </div>
+                                ))}
+                                {dayEvents.length > 4 && (
+                                    <div className={`text-[10px] ${theme.textSec} px-1`}>+{dayEvents.length - 4} mais</div>
+                                )}
                             </div>
                         );
                     })}
@@ -534,13 +629,13 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     };
 
     return (
-        <div ref={containerRef} className="flex h-screen bg-black text-white overflow-hidden">
+        <div ref={containerRef} className={`flex h-screen ${theme.bg} ${theme.text} overflow-hidden font-sans`}>
             {/* Sidebar */}
-            <div className={`w-64 bg-[#0A0A0A] border-r border-white/10 flex flex-col transition-all duration-300 ${sidebarOpen ? '' : '-ml-64'}`}>
+            <div className={`w-64 ${theme.bgSec} border-r ${theme.border} flex flex-col transition-all duration-300 ${sidebarOpen ? '' : '-ml-64'}`}>
                 {/* Header Logo Area */}
-                <div className="p-4 flex items-center gap-2 border-b border-white/5">
-                    <button onClick={onBack} className="p-2 hover:bg-white/10 rounded-full">
-                        <ArrowLeft className="w-5 h-5 text-gray-400" />
+                <div className={`p-4 flex items-center gap-2 border-b ${theme.borderSec}`}>
+                    <button onClick={onBack} className={`p-2 ${theme.hover} rounded-full`}>
+                        <ArrowLeft className={`w-5 h-5 ${theme.textSec}`} />
                     </button>
                     <span className="font-bold text-lg tracking-tight">Agenda 2026</span>
                 </div>
@@ -559,10 +654,10 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 {/* Mini Calendar (Simplified) */}
                 <div className="px-4 py-2">
                     <div className="flex justify-between items-center mb-4">
-                        <span className="text-sm font-medium text-gray-300">{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
+                        <span className={`text-sm font-medium ${theme.textSec}`}>{MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}</span>
                     </div>
                     {/* Functional Mini Calendar */}
-                    <div className="grid grid-cols-7 gap-1 text-center text-xs text-gray-500">
+                    <div className={`grid grid-cols-7 gap-1 text-center text-xs ${theme.textSec}`}>
                         {WEEKDAYS.map(d => <div key={d}>{d[0]}</div>)}
 
                         {(() => {
@@ -586,7 +681,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                                     setCurrentDate(dDate);
                                                     setView('DAY');
                                                 }}
-                                                className={`h-6 w-6 flex items-center justify-center rounded-full transition-colors cursor-pointer ${isSel ? 'bg-blue-600 text-white' : 'hover:bg-white/10'}`}
+                                                className={`h-6 w-6 flex items-center justify-center rounded-full transition-colors cursor-pointer ${isSel ? 'bg-blue-600 text-white' : theme.hover}`}
                                             >
                                                 {d}
                                             </div>
@@ -599,7 +694,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
                     {/* Purpose Images Rotation */}
                     <div className="flex-1 flex flex-col justify-end p-4 pb-6">
-                        <div className="text-[10px] text-gray-500 uppercase tracking-widest mb-3 text-center">
+                        <div className={`text-[10px] ${theme.textSec} uppercase tracking-widest mb-3 text-center`}>
                             Proposta da Missão
                         </div>
                         <RotatingImage
@@ -609,7 +704,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                 "/propósito/WhatsApp Image 2025-12-31 at 20.39.32.jpg"
                             ]}
                             alt="Meu Propósito"
-                            className="w-full aspect-[9/16] rounded-xl overflow-hidden shadow-2xl border border-white/5 opacity-80 hover:opacity-100 transition-opacity duration-300"
+                            className={`w-full aspect-[9/16] rounded-xl overflow-hidden shadow-2xl border ${theme.borderSec} opacity-80 hover:opacity-100 transition-opacity duration-300`}
                             interval={5000}
                             objectFit="cover"
                         />
@@ -625,16 +720,16 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             {/* Main Content */}
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Top Bar */}
-                <header className="h-16 flex items-center justify-between px-4 border-b border-white/10 bg-[#0A0A0A]">
+                <header className={`h-16 flex items-center justify-between px-4 border-b ${theme.border} ${theme.bgSec}`}>
                     <div className="flex items-center gap-4">
-                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 hover:bg-white/10 rounded-full">
-                            <Menu className="w-5 h-5 text-gray-400" />
+                        <button onClick={() => setSidebarOpen(!sidebarOpen)} className={`p-2 ${theme.hover} rounded-full`}>
+                            <Menu className={`w-5 h-5 ${theme.textSec}`} />
                         </button>
                         <div className="flex items-center gap-2">
-                            <button onClick={goToToday} className="px-3 py-1.5 border border-white/20 rounded hover:bg-white/5 text-sm font-medium">Hoje</button>
+                            <button onClick={goToToday} className={`px-3 py-1.5 border ${theme.borderSec} rounded ${theme.hover} text-sm font-medium`}>Hoje</button>
                             <div className="flex items-center">
-                                <button onClick={prevPeriod} className="p-1.5 hover:bg-white/10 rounded-full"><ChevronLeft className="w-4 h-4" /></button>
-                                <button onClick={nextPeriod} className="p-1.5 hover:bg-white/10 rounded-full"><ChevronRight className="w-4 h-4" /></button>
+                                <button onClick={prevPeriod} className={`p-1.5 ${theme.hover} rounded-full`}><ChevronLeft className="w-4 h-4" /></button>
+                                <button onClick={nextPeriod} className={`p-1.5 ${theme.hover} rounded-full`}><ChevronRight className="w-4 h-4" /></button>
                             </div>
                             <h2 className="text-xl font-medium ml-2">
                                 {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
@@ -643,28 +738,33 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        <div className="flex bg-[#1E1E1E] rounded-md p-1 border border-white/10">
+                        <div className={`flex ${isDarkMode ? 'bg-[#1E1E1E]' : 'bg-gray-200'} rounded-md p-1 border ${theme.borderSec}`}>
                             <button
                                 onClick={() => setView('MONTH')}
-                                className={`px-3 py-1 rounded text-sm ${view === 'MONTH' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                className={`px-3 py-1 rounded text-sm ${view === 'MONTH' ? (isDarkMode ? 'bg-[#2C2C2C] text-white shadow' : 'bg-white text-black shadow') : theme.textSec}`}
                             >
                                 Mês
                             </button>
                             <button
                                 onClick={() => setView('WEEK')}
-                                className={`px-3 py-1 rounded text-sm ${view === 'WEEK' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                className={`px-3 py-1 rounded text-sm ${view === 'WEEK' ? (isDarkMode ? 'bg-[#2C2C2C] text-white shadow' : 'bg-white text-black shadow') : theme.textSec}`}
                             >
                                 Semanas
                             </button>
                             <button
                                 onClick={() => setView('DAY')}
-                                className={`px-3 py-1 rounded text-sm ${view === 'DAY' ? 'bg-[#2C2C2C] text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                                className={`px-3 py-1 rounded text-sm ${view === 'DAY' ? (isDarkMode ? 'bg-[#2C2C2C] text-white shadow' : 'bg-white text-black shadow') : theme.textSec}`}
                             >
                                 Dia
                             </button>
                         </div>
-                        <button className="p-2 hover:bg-white/10 rounded-full"><Search className="w-5 h-5 text-gray-400" /></button>
-                        <button className="p-2 hover:bg-white/10 rounded-full"><Settings className="w-5 h-5 text-gray-400" /></button>
+                        <button
+                            onClick={() => setIsDarkMode(!isDarkMode)}
+                            className={`p-2 ${theme.hover} rounded-full transition-colors`}
+                            title={isDarkMode ? "Modo Claro" : "Modo Escuro"}
+                        >
+                            {isDarkMode ? <Sun className="w-5 h-5 text-gray-400" /> : <Moon className="w-5 h-5 text-gray-600" />}
+                        </button>
                     </div>
                 </header>
 
@@ -672,122 +772,163 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 {view === 'MONTH' ? <MonthGrid /> : <WeeklyGrid />}
             </div>
 
-            {/* Event Modal */}
+            {/* Event Modal - Redesigned */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)}>
-                    <div className="bg-[#1E1E1E] w-[500px] rounded-xl shadow-2xl border border-white/10 overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <div className="bg-[#252525] px-4 py-3 flex justify-between items-center border-b border-white/5">
-                            <h3 className="text-lg font-medium text-gray-200">
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowModal(false)}>
+                    <div
+                        onClick={e => e.stopPropagation()}
+                        className={`${isDarkMode ? 'bg-[#121212]/90 border-white/10' : 'bg-white/95 border-gray-200'} border backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100`}
+                    >
+                        {/* Modal Header */}
+                        <div className={`flex items-center justify-between p-6 pb-2`}>
+                            <h3 className={`text-xl font-bold ${theme.text}`}>
                                 {selectedEvent ? 'Editar Evento' : 'Novo Evento'}
                             </h3>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
                                 {selectedEvent && (
-                                    <button onClick={handleDelete} className="p-2 hover:bg-red-500/20 text-gray-400 hover:text-red-500 rounded-full transition"><Trash2 className="w-4 h-4" /></button>
+                                    <button
+                                        onClick={handleDelete}
+                                        className="p-2 hover:bg-red-500/20 text-red-500 rounded-full transition-colors"
+                                    >
+                                        <Trash2 className="w-5 h-5" />
+                                    </button>
                                 )}
-                                <button onClick={() => setShowModal(false)} className="p-2 hover:bg-white/10 text-gray-400 hover:text-white rounded-full"><X className="w-4 h-4" /></button>
+                                <button onClick={() => setShowModal(false)} className={`p-2 ${theme.hover} rounded-full transition-colors`}>
+                                    <X className={`w-5 h-5 ${theme.textSec}`} />
+                                </button>
                             </div>
                         </div>
 
-                        <div className="p-6 space-y-4">
-                            <input
-                                type="text"
-                                placeholder="Adicionar título"
-                                value={formTitle}
-                                onChange={e => setFormTitle(e.target.value)}
-                                className="w-full bg-transparent text-2xl border-b-2 border-transparent focus:border-blue-500 outline-none pb-2 text-white placeholder-gray-500"
-                                autoFocus
-                            />
-
-                            <div className="flex items-center gap-4 text-gray-300">
-                                <div className="p-2 rounded bg-white/5"><AlignLeft className="w-5 h-5" /></div>
-                                <div className="flex-1 text-sm bg-white/5 rounded px-3 py-2 text-gray-400">
-                                    {formType}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-gray-300">
-                                <div className="p-2 rounded bg-white/5"><Clock className="w-5 h-5" /></div>
-                                <div className="flex-1 flex flex-col gap-2">
-                                    <label className="flex items-center gap-2 cursor-pointer select-none">
-                                        <input
-                                            type="checkbox"
-                                            checked={formAllDay}
-                                            onChange={(e) => setFormAllDay(e.target.checked)}
-                                            className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                                        />
-                                        <span className="text-sm text-gray-300">O dia todo</span>
-                                    </label>
-
-                                    {!formAllDay && (
-                                        <div className="flex gap-2 animate-in fade-in slide-in-from-top-1">
-                                            <input
-                                                type="date"
-                                                value={formStartDate}
-                                                onChange={e => setFormStartDate(e.target.value)}
-                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                            />
-                                            <input
-                                                type="time"
-                                                value={formStartTime}
-                                                onChange={e => setFormStartTime(e.target.value)}
-                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                            />
-                                            <span className="self-center">-</span>
-                                            <input
-                                                type="time"
-                                                value={formEndTime}
-                                                onChange={e => setFormEndTime(e.target.value)}
-                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                            />
-                                        </div>
-                                    )}
-                                    {formAllDay && (
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="date"
-                                                value={formStartDate}
-                                                onChange={e => setFormStartDate(e.target.value)}
-                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                            />
-                                            <span className="self-center">até</span>
-                                            <input
-                                                type="date"
-                                                value={formEndDate}
-                                                onChange={e => setFormEndDate(e.target.value)}
-                                                className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex items-center gap-4 text-gray-300">
-                                <div className="p-2 rounded bg-white/5"><Repeat className="w-5 h-5" /></div>
-                                <label className="flex items-center gap-2 cursor-pointer select-none">
-                                    <input
-                                        type="checkbox"
-                                        checked={formRecurrence === 'WEEKLY'}
-                                        onChange={(e) => setFormRecurrence(e.target.checked ? 'WEEKLY' : 'NONE')}
-                                        className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
-                                    />
-                                    <span className="text-sm text-gray-300">Repetir semanalmente</span>
-                                </label>
-                            </div>
-
-                            <div className="flex gap-4">
-                                <div className="p-2 rounded bg-white/5 h-fit"><AlignLeft className="w-5 h-5 text-transparent" /></div> {/* Spacer */}
-                                <textarea
-                                    placeholder="Adicionar descrição"
-                                    value={formDesc}
-                                    onChange={e => setFormDesc(e.target.value)}
-                                    className="w-full bg-white/5 rounded-lg p-3 min-h-[100px] text-sm text-white placeholder-gray-500 outline-none focus:ring-1 focus:ring-blue-500 resize-none"
+                        {/* Modal Content */}
+                        <div className="p-6 pt-2 space-y-6">
+                            {/* Title Input - Large & Clean */}
+                            <div className="relative group">
+                                <input
+                                    type="text"
+                                    placeholder="Adicionar título"
+                                    value={formTitle}
+                                    onChange={e => setFormTitle(e.target.value)}
+                                    className={`w-full text-2xl font-medium bg-transparent border-b-2 ${theme.border} focus:border-blue-500 outline-none py-2 px-1 placeholder:text-gray-500/50 transition-colors ${theme.text}`}
+                                    autoFocus
                                 />
                             </div>
 
-                            <div className="flex gap-2 justify-end pt-4">
-                                <button onClick={() => setShowModal(false)} className="px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/5 rounded">Cancelar</button>
-                                <button onClick={handleSave} className="px-6 py-2 text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white rounded shadow-lg">Salvar</button>
+                            {/* Type Selector - Capsules */}
+                            <div className="flex gap-2">
+                                {(['EVENT', 'MEETING', 'TASK', 'REMINDER'] as AgendaEvent['type'][]).map(t => (
+                                    <button
+                                        key={t}
+                                        onClick={() => setFormType(t)}
+                                        className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all
+                                            ${formType === t
+                                                ? (t === 'EVENT' ? 'bg-cyan-600 text-white' : t === 'MEETING' ? 'bg-blue-600 text-white' : t === 'TASK' ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white')
+                                                : `${isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'} ${theme.textSec}`
+                                            }
+                                        `}
+                                    >
+                                        {t === 'EVENT' ? 'EVENTO' : t === 'MEETING' ? 'REUNIÃO' : t === 'TASK' ? 'TAREFA' : 'LEMBRETE'}
+                                    </button>
+                                ))}
                             </div>
+
+                            {/* Date & Time Section */}
+                            <div className={`space-y-4 p-4 rounded-xl ${theme.bgSec}`}>
+                                {/* All Day Toggle */}
+                                <label className="flex items-center gap-3 cursor-pointer group">
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formAllDay ? 'bg-blue-500 border-blue-500' : `border-gray-500 ${isDarkMode ? 'bg-transparent' : 'bg-white'}`}`}>
+                                        {formAllDay && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={formAllDay}
+                                        onChange={e => setFormAllDay(e.target.checked)}
+                                        className="hidden"
+                                    />
+                                    <span className={`text-sm font-medium ${theme.text}`}>Dia inteiro</span>
+                                </label>
+
+                                <div className="flex flex-col gap-3">
+                                    {/* Dates */}
+                                    <div className="flex items-center gap-2">
+                                        <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                            <CalendarIcon className={`w-4 h-4 ${theme.textSec}`} />
+                                            <input
+                                                type="date"
+                                                value={formStartDate}
+                                                onChange={e => setFormStartDate(e.target.value)}
+                                                className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                            />
+                                        </div>
+                                        {formAllDay && <span className={theme.textSec}>até</span>}
+                                        {formAllDay && (
+                                            <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                                <CalendarIcon className={`w-4 h-4 ${theme.textSec}`} />
+                                                <input
+                                                    type="date"
+                                                    value={formEndDate}
+                                                    onChange={e => setFormEndDate(e.target.value)}
+                                                    className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Times (if not all day) */}
+                                    {!formAllDay && (
+                                        <div className="flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+                                            <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                                <Clock className={`w-4 h-4 ${theme.textSec}`} />
+                                                <input
+                                                    type="time"
+                                                    value={formStartTime}
+                                                    onChange={e => setFormStartTime(e.target.value)}
+                                                    className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                                />
+                                            </div>
+                                            <span className={theme.textSec}>-</span>
+                                            <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                                <Clock className={`w-4 h-4 ${theme.textSec}`} />
+                                                <input
+                                                    type="time"
+                                                    value={formEndTime}
+                                                    onChange={e => setFormEndTime(e.target.value)}
+                                                    className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                                />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Recurrence */}
+                            <div className={`flex items-center gap-3 p-3 rounded-xl border ${theme.borderSec} ${theme.hover} cursor-pointer`} onClick={() => setFormRecurrence(formRecurrence === 'NONE' ? 'WEEKLY' : 'NONE')}>
+                                <Repeat className={`w-5 h-5 ${formRecurrence === 'WEEKLY' ? 'text-blue-500' : theme.textSec}`} />
+                                <div className="flex-1">
+                                    <div className={`text-sm font-medium ${theme.text}`}>Repetir semanalmente</div>
+                                    <div className={`text-xs ${theme.textSec}`}>
+                                        {formRecurrence === 'WEEKLY' ? 'Ocorre toda semana neste horário' : 'Não se repete'}
+                                    </div>
+                                </div>
+                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${formRecurrence === 'WEEKLY' ? 'bg-blue-500 border-blue-500' : `border-gray-500 ${isDarkMode ? 'bg-transparent' : 'bg-white'}`}`}>
+                                    {formRecurrence === 'WEEKLY' && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer Actions */}
+                        <div className={`p-4 border-t ${theme.border} flex justify-end gap-3 ${theme.bgSec}`}>
+                            <button
+                                onClick={() => setShowModal(false)}
+                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${theme.bg} ${theme.text} hover:opacity-80`}
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleSave}
+                                className="px-6 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all transform hover:scale-105"
+                            >
+                                Salvar
+                            </button>
                         </div>
                     </div>
                 </div>
