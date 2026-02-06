@@ -232,7 +232,7 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                     >
                         <div
                             className={`max-w-[85%] rounded-2xl p-3 text-sm ${msg.sender === 'user'
-                                ? 'bg-pink-600 text-white rounded-br-none'
+                                ? 'bg-blue-600 text-white rounded-br-none'
                                 : 'bg-gray-800 text-gray-200 rounded-bl-none border border-white/5'
                                 }`}
                         >
@@ -266,12 +266,12 @@ export const CapitalSocialAssistant: React.FC<CapitalSocialAssistantProps> = ({ 
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleSend()}
                         placeholder={apiKey ? "Pergunte QUALQUER coisa aos dados..." : "Pergunte o Total (ou configure a IA)..."}
-                        className="flex-1 bg-gray-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-pink-500/50 transition-colors"
+                        className="flex-1 bg-gray-800 border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors"
                     />
                     <button
                         onClick={handleSend}
                         disabled={!inputValue.trim() || isTyping}
-                        className="p-2 bg-pink-600 hover:bg-pink-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                         <Send className="w-5 h-5" />
                     </button>

@@ -173,9 +173,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
         {onOpenBucketList && (
           <button
             onClick={onOpenBucketList}
-            className="w-full py-2.5 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center gap-2 text-purple-400 hover:bg-purple-500/20 transition-all"
+            className="w-full py-2.5 rounded-lg bg-white/5 border border-white/10 flex items-center justify-center gap-2 text-gray-300 hover:bg-white/10 transition-all"
           >
-            <Scroll className="w-4 h-4" />
+            <Scroll className="w-4 h-4 text-gray-400" />
             <span className="text-xs font-bold uppercase tracking-wider">Lista de Vida</span>
           </button>
         )}
@@ -184,7 +184,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
         {onOpenEventsAgenda && (
           <button
             onClick={onOpenEventsAgenda}
-            className="w-full py-2.5 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-center justify-center gap-2 text-orange-400 hover:bg-orange-500/20 transition-all"
+            className="w-full py-2.5 rounded-lg bg-blue-600/10 border border-blue-600/20 flex items-center justify-center gap-2 text-blue-400 hover:bg-blue-600/20 transition-all"
           >
             <Calendar className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Agenda 2026</span>
@@ -195,7 +195,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ months, currentMonthId, onSele
         {onOpenCapitalSocial && (
           <button
             onClick={onOpenCapitalSocial}
-            className="w-full py-2.5 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center gap-2 text-pink-400 hover:bg-pink-500/20 transition-all"
+            className="w-full py-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center gap-2 text-emerald-400 hover:bg-emerald-500/20 transition-all"
           >
             <FileText className="w-4 h-4" />
             <span className="text-xs font-bold uppercase tracking-wider">Capital Social</span>

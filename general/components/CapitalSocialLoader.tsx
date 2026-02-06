@@ -241,7 +241,7 @@ export const CapitalSocialLoader: React.FC = () => {
                     <div className="flex items-center justify-between mb-6">
                         <div>
                             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
-                                <FileText className="w-6 h-6 text-pink-400" />
+                                <FileText className="w-6 h-6 text-emerald-400" />
                                 Gestão de Capital Social
                             </h2>
                             <p className="text-gray-400 text-sm mt-1">
@@ -256,7 +256,7 @@ export const CapitalSocialLoader: React.FC = () => {
                                 <button
                                     onClick={() => setShowTable(!showTable)}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showTable
-                                        ? 'bg-purple-600/20 text-purple-300 border border-purple-500/30'
+                                        ? 'bg-cyan-600/20 text-cyan-300 border border-cyan-500/30'
                                         : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                         }`}
                                 >
@@ -270,7 +270,7 @@ export const CapitalSocialLoader: React.FC = () => {
                     {/* Actions: Upload or Save */}
                     {!isPreview ? (
                         <div className="flex items-center gap-4">
-                            <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors border border-gray-600 hover:border-pink-500">
+                            <label className="cursor-pointer flex items-center gap-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-white transition-colors border border-gray-600 hover:border-emerald-500">
                                 <Upload className="w-4 h-4" />
                                 <span>Importar Novos Dados (.csv)</span>
                                 <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" disabled={loading} />
@@ -281,10 +281,10 @@ export const CapitalSocialLoader: React.FC = () => {
                             </button>
                         </div>
                     ) : (
-                        <div className="flex items-center justify-between bg-gray-900/50 p-4 rounded-lg border border-pink-500/30">
+                        <div className="flex items-center justify-between bg-gray-900/50 p-4 rounded-lg border border-emerald-500/30">
                             <div className="flex items-center gap-3">
-                                <AlertCircle className="w-5 h-5 text-pink-400" />
-                                <span className="text-pink-100">Confira os dados abaixo antes de salvar.</span>
+                                <AlertCircle className="w-5 h-5 text-emerald-400" />
+                                <span className="text-emerald-100">Confira os dados abaixo antes de salvar.</span>
                             </div>
                             <div className="flex gap-2">
                                 <button
@@ -296,7 +296,7 @@ export const CapitalSocialLoader: React.FC = () => {
                                 <button
                                     onClick={handleSavePreview}
                                     disabled={loading}
-                                    className="flex items-center gap-2 px-6 py-2 bg-pink-600 hover:bg-pink-700 text-white rounded-lg font-bold shadow-lg shadow-pink-900/20"
+                                    className="flex items-center gap-2 px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-lg shadow-emerald-900/20"
                                 >
                                     <Save className="w-4 h-4" />
                                     {loading ? 'Salvando...' : 'Confirmar Importação'}

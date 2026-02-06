@@ -116,9 +116,9 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
             title: 'O SUBLIME',
             subtitle: 'Fenômenos & Natureza Extrema',
             icon: <Mountain className="w-5 h-5" />,
-            color: 'text-purple-400',
-            border: 'border-purple-500/50',
-            bg: 'bg-purple-500/10',
+            color: 'text-cyan-400',
+            border: 'border-cyan-500/50',
+            bg: 'bg-cyan-500/10',
             items: [
                 { id: 'aurora', text: 'Ver a Aurora Boreal', subtitle: 'Caçar as luzes do norte', image: 'https://images.unsplash.com/photo-1579033461380-adb47c3eb938?auto=format&fit=crop&w=800&q=80' }, // Green Aurora Night
                 { id: 'volcano', text: 'Ver um Vulcão Ativo', subtitle: 'Sentir a terra viva', image: 'https://images.unsplash.com/photo-1462331940185-00029557301c?auto=format&fit=crop&w=800&q=80' }, // Active Volcano
@@ -177,7 +177,7 @@ export const BucketList: React.FC<BucketListProps> = ({ onBack }) => {
                         <div className="flex items-center justify-center md:justify-end gap-3 text-sm text-text-muted">
                             <span>{completedItems}/{totalItems} Conquistas</span>
                             <div className="w-32 h-1.5 bg-white/10 rounded-full overflow-hidden">
-                                <div className="h-full bg-indigo-500 transition-all duration-1000" style={{ width: `${progress}%` }} />
+                                <div className="h-full bg-cyan-500 transition-all duration-1000" style={{ width: `${progress}%` }} />
                             </div>
                         </div>
                     </div>

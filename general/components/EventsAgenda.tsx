@@ -32,7 +32,7 @@ const EVENT_COLORS = {
     MEETING: { bg: 'bg-blue-600', text: 'text-white', border: 'border-blue-400' },
     TASK: { bg: 'bg-emerald-600', text: 'text-white', border: 'border-emerald-400' },
     REMINDER: { bg: 'bg-amber-600', text: 'text-white', border: 'border-amber-400' },
-    EVENT: { bg: 'bg-purple-600', text: 'text-white', border: 'border-purple-400' },
+    EVENT: { bg: 'bg-cyan-600', text: 'text-black', border: 'border-cyan-400' },
 };
 
 export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
