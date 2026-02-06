@@ -440,95 +440,90 @@ const Dashboard: React.FC = () => {
       {/* Gradient Overlay */}
       <div className="fixed inset-0 z-[-1] bg-gradient-to-b from-black/80 via-black/70 to-black/90" />
 
-      {/* Sidebar - Always Visible */}
-      <Sidebar
-        months={months}
-        currentMonthId={currentMonth}
-        onSelectMonth={(monthId) => {
-          // Close all pages when selecting a month
-          setShowRewardVault(false);
-          setShowVehicleRoadmap(false);
-          setShowRevenueTimeline(false);
-          setShowCommandCenter(false);
-          setShowBucketList(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(false);
-          setCurrentMonth(monthId);
-        }}
-        onOpenRewardVault={() => {
-          // Close other pages, open this one
-          setShowVehicleRoadmap(false);
-          setShowRevenueTimeline(false);
-          setShowCommandCenter(false);
-          setShowBucketList(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(false);
-          setShowRewardVault(true);
-        }}
-        onOpenVehicleRoadmap={() => {
-          // Close other pages, open this one
-          setShowRewardVault(false);
-          setShowRevenueTimeline(false);
-          setShowCommandCenter(false);
-          setShowBucketList(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(false);
-          setShowVehicleRoadmap(true);
-        }}
-        onOpenRevenueTimeline={() => {
-          // Close other pages, open this one
-          setShowRewardVault(false);
-          setShowVehicleRoadmap(false);
-          setShowCommandCenter(false);
-          setShowBucketList(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(false);
-          setShowRevenueTimeline(true);
-        }}
-        onOpenCommandCenter={() => {
-          // Close other pages, open this one
-          setShowRewardVault(false);
-          setShowVehicleRoadmap(false);
-          setShowRevenueTimeline(false);
-          setShowBucketList(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(false);
-          setShowCommandCenter(true);
-        }}
-        onOpenBucketList={() => {
-          // Close other pages, open this one
-          setShowRewardVault(false);
-          setShowVehicleRoadmap(false);
-          setShowRevenueTimeline(false);
-          setShowCommandCenter(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(false);
-          setShowBucketList(true);
-        }}
-        onOpenEventsAgenda={() => {
-          // Close other pages, open this one
-          setShowRewardVault(false);
-          setShowVehicleRoadmap(false);
-          setShowRevenueTimeline(false);
-          setShowCommandCenter(false);
-          setShowBucketList(false);
-          setShowCapitalSocial(false);
-          setShowEventsAgenda(true);
-        }}
-        onOpenCapitalSocial={() => {
-          // Close other pages, open this one
-          setShowRewardVault(false);
-          setShowVehicleRoadmap(false);
-          setShowRevenueTimeline(false);
-          setShowCommandCenter(false);
-          setShowBucketList(false);
-          setShowEventsAgenda(false);
-          setShowCapitalSocial(true);
-        }}
-      />
+      {/* Sidebar - Hidden when Agenda is open */}
+      {!showEventsAgenda && (
+        <Sidebar
+          months={months}
+          currentMonthId={currentMonth}
+          onSelectMonth={(monthId) => {
+            // Close all pages when selecting a month
+            setShowRewardVault(false);
+            setShowVehicleRoadmap(false);
+            setShowRevenueTimeline(false);
+            setShowCommandCenter(false);
+            setShowBucketList(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(false);
+            setCurrentMonth(monthId);
+          }}
+          onOpenRewardVault={() => {
+            setShowVehicleRoadmap(false);
+            setShowRevenueTimeline(false);
+            setShowCommandCenter(false);
+            setShowBucketList(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(false);
+            setShowRewardVault(true);
+          }}
+          onOpenVehicleRoadmap={() => {
+            setShowRewardVault(false);
+            setShowRevenueTimeline(false);
+            setShowCommandCenter(false);
+            setShowBucketList(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(false);
+            setShowVehicleRoadmap(true);
+          }}
+          onOpenRevenueTimeline={() => {
+            setShowRewardVault(false);
+            setShowVehicleRoadmap(false);
+            setShowCommandCenter(false);
+            setShowBucketList(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(false);
+            setShowRevenueTimeline(true);
+          }}
+          onOpenCommandCenter={() => {
+            setShowRewardVault(false);
+            setShowVehicleRoadmap(false);
+            setShowRevenueTimeline(false);
+            setShowBucketList(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(false);
+            setShowCommandCenter(true);
+          }}
+          onOpenBucketList={() => {
+            setShowRewardVault(false);
+            setShowVehicleRoadmap(false);
+            setShowRevenueTimeline(false);
+            setShowCommandCenter(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(false);
+            setShowBucketList(true);
+          }}
+          onOpenEventsAgenda={() => {
+            setShowRewardVault(false);
+            setShowVehicleRoadmap(false);
+            setShowRevenueTimeline(false);
+            setShowCommandCenter(false);
+            setShowBucketList(false);
+            setShowCapitalSocial(false);
+            setShowEventsAgenda(true);
+          }}
+          onOpenCapitalSocial={() => {
+            setShowRewardVault(false);
+            setShowVehicleRoadmap(false);
+            setShowRevenueTimeline(false);
+            setShowCommandCenter(false);
+            setShowBucketList(false);
+            setShowEventsAgenda(false);
+            setShowCapitalSocial(true);
+          }}
+        />
+      )}
 
       {/* Main Content Area */}
-      <main className="ml-72 p-8 relative min-h-screen">
+      <main className={`${showEventsAgenda ? 'ml-0 p-0' : 'ml-72 p-8'} relative min-h-screen transition-all duration-300`}>
         {/* Internal Pages with Transitions */}
         <PageTransition isVisible={showRewardVault}>
           <RewardVault
