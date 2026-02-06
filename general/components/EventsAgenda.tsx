@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { ArrowLeft, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, AlignLeft, X, Trash2, CheckCircle2, Circle, MoreVertical, Search, Settings, HelpCircle, Menu } from 'lucide-react';
+import { ArrowLeft, Plus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Clock, MapPin, AlignLeft, X, Trash2, CheckCircle2, Circle, MoreVertical, Search, Settings, HelpCircle, Menu, Repeat } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
@@ -18,6 +18,7 @@ interface AgendaEvent {
     type: 'MEETING' | 'TASK' | 'REMINDER' | 'EVENT';
     completed: boolean;
     color?: string;
+    recurrence?: 'WEEKLY' | 'NONE';
 }
 
 type ViewType = 'MONTH' | 'WEEK' | 'DAY';
@@ -37,7 +38,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const { user } = useAuth();
     const [events, setEvents] = useState<AgendaEvent[]>([]);
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [view, setView] = useState<ViewType>('WEEK'); // Default to WEEK as requested "versions back" often implied this
+    const [view, setView] = useState<ViewType>('MONTH');
     const [sidebarOpen, setSidebarOpen] = useState(true);
 
     // Modal State
@@ -50,6 +51,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [formStartTime, setFormStartTime] = useState('');
     const [formEndTime, setFormEndTime] = useState('');
     const [formType, setFormType] = useState<AgendaEvent['type']>('EVENT');
+    const [formRecurrence, setFormRecurrence] = useState<'WEEKLY' | 'NONE'>('NONE');
 
     // Data Loading & Legacy Recovery
     useEffect(() => {
@@ -71,7 +73,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         startTime: e.time ? e.time.split('-')[0]?.trim() : undefined,
                         endTime: e.time ? e.time.split('-')[1]?.trim() : undefined,
                         type: e.type || 'EVENT',
-                        completed: e.completed || false
+                        completed: e.completed || false,
+                        recurrence: e.recurrence || 'NONE'
                     }));
                     setEvents(mapped);
                     // Sync to local
@@ -96,7 +99,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 const mapped = parsed.map((e: any) => ({
                     ...e,
                     startDate: e.startDate || e.date, // normalizing
-                    startTime: e.time ? e.time.split('-')[0]?.trim() : undefined
+                    startTime: e.time ? e.time.split('-')[0]?.trim() : undefined,
+                    recurrence: 'NONE'
                 }));
                 setEvents(mapped);
                 localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
@@ -116,7 +120,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     endDate: e.date || e.endDate || e.startDate,
                     startTime: e.time || '00:00',
                     type: 'EVENT',
-                    completed: false
+                    completed: false,
+                    recurrence: 'NONE'
                 }));
                 setEvents(mapped);
                 localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
@@ -157,7 +162,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                     end_date: event.endDate,
                     time: event.startTime ? `${event.startTime} - ${event.endTime || ''}` : null,
                     type: event.type,
-                    completed: event.completed
+                    completed: event.completed,
+                    recurrence: event.recurrence
                 });
             }
         } catch (err) {
@@ -205,6 +211,30 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         return dates;
     }, [currentDate, view]);
 
+    // Recurring Event Logic
+    const getEventsForDate = (dateStr: string) => {
+        const targetDate = new Date(dateStr + 'T00:00:00'); // ensure local time treatment for simple day check
+        const targetDay = targetDate.getDay();
+
+        return events.filter(e => {
+            // 1. Normal single/multi-day match
+            if (e.startDate <= dateStr && e.endDate >= dateStr) return true;
+
+            // 2. Weekly Recurrence
+            if (e.recurrence === 'WEEKLY') {
+                // Must be after or equal to start date
+                if (dateStr >= e.startDate) {
+                    // Check day match
+                    // Basic safeguard: parse start date day
+                    // appending T00:00:00 to ensure we don't get timezone shifted to prev day on parsing
+                    const startD = new Date(e.startDate + 'T00:00:00');
+                    if (startD.getDay() === targetDay) return true;
+                }
+            }
+            return false;
+        });
+    };
+
     // Modal Handlers
     const openNewEventModal = (start?: Date, hour?: number) => {
         const d = start || new Date();
@@ -223,6 +253,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setFormStartTime(`${hStr}:00`);
         setFormEndTime(`${nextHStr}:00`);
         setFormType('EVENT');
+        setFormRecurrence('NONE');
         setShowModal(true);
     };
 
@@ -236,6 +267,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         setFormStartTime(event.startTime || '');
         setFormEndTime(event.endTime || '');
         setFormType(event.type);
+        setFormRecurrence(event.recurrence || 'NONE');
         setShowModal(true);
     };
 
@@ -251,7 +283,8 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             startTime: formStartTime,
             endTime: formEndTime,
             type: formType,
-            completed: selectedEvent ? selectedEvent.completed : false
+            completed: selectedEvent ? selectedEvent.completed : false,
+            recurrence: formRecurrence
         };
 
         persistEvent(newEvent);
@@ -303,9 +336,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         {/* Day Columns */}
                         {viewDates.map((date, dayIdx) => {
                             const dateStr = date.toISOString().split('T')[0];
-                            const dayEvents = events.filter(e =>
-                                e.startDate <= dateStr && e.endDate >= dateStr
-                            );
+                            const dayEvents = getEventsForDate(dateStr);
 
                             return (
                                 <div
@@ -355,6 +386,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                             >
                                                 <div className="font-semibold truncate">{event.title}</div>
                                                 <div className="truncate opacity-80">{event.startTime} - {event.endTime}</div>
+                                                {event.recurrence === 'WEEKLY' && <Repeat className="w-3 h-3 absolute top-1 right-1 opacity-50" />}
                                             </div>
                                         );
                                     })}
@@ -391,7 +423,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
 
                     {monthDays.map(day => {
                         const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                        const dayEvents = events.filter(e => e.startDate <= dateStr && e.endDate >= dateStr);
+                        const dayEvents = getEventsForDate(dateStr);
                         const isToday = new Date().toISOString().split('T')[0] === dateStr;
 
                         return (
@@ -425,6 +457,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         >
                                             {ev.startTime && <span className="font-sans font-bold text-xs opacity-100">{ev.startTime}</span>}
                                             <span className="truncate font-medium flex-1">{ev.title}</span>
+                                            {ev.recurrence === 'WEEKLY' && <Repeat className="w-2 h-2 opacity-70 ml-1" />}
                                         </div>
                                     ))}
                                     {dayEvents.length > 5 && <div className="text-[10px] text-gray-500 pl-1">+{dayEvents.length - 5} mais</div>}
@@ -583,6 +616,19 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         className="bg-white/5 rounded px-2 py-1 text-sm outline-none focus:ring-1 focus:ring-blue-500"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="flex items-center gap-4 text-gray-300">
+                                <div className="p-2 rounded bg-white/5"><Repeat className="w-5 h-5" /></div>
+                                <label className="flex items-center gap-2 cursor-pointer select-none">
+                                    <input
+                                        type="checkbox"
+                                        checked={formRecurrence === 'WEEKLY'}
+                                        onChange={(e) => setFormRecurrence(e.target.checked ? 'WEEKLY' : 'NONE')}
+                                        className="w-4 h-4 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-gray-300">Repetir semanalmente</span>
+                                </label>
                             </div>
 
                             <div className="flex gap-4">
