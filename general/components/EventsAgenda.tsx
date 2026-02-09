@@ -76,18 +76,23 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [formRecurrence, setFormRecurrence] = useState<'WEEKLY' | 'NONE'>('NONE');
     const [formAllDay, setFormAllDay] = useState(false);
 
-    // Data Loading & Legacy Recovery
+    // Data Loading & Recovery Sync
     useEffect(() => {
-        const loadEvents = async () => {
-            // 1. Try Supabase first
+        const loadAndSyncEvents = async () => {
+            if (!user) return;
+
+            let supabaseEvents: AgendaEvent[] = [];
+            let localEvents: AgendaEvent[] = [];
+
+            // 1. Fetch from Supabase
             try {
                 const { data, error } = await supabase
                     .from('agenda_events')
                     .select('*')
-                    .eq('user_id', user?.id);
+                    .eq('user_id', user.id);
 
-                if (data && data.length > 0 && !error) {
-                    const mapped = data.map((e: any) => ({
+                if (data && !error) {
+                    supabaseEvents = data.map((e: any) => ({
                         id: e.id,
                         title: e.title,
                         description: e.description || '',
@@ -100,59 +105,114 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         recurrence: e.recurrence || 'NONE',
                         allDay: e.all_day || false
                     }));
-                    setEvents(mapped);
-                    // Sync to local
-                    localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
-                    return;
                 }
             } catch (err) {
                 console.error("Supabase load error", err);
             }
 
-            // 2. Fallback to LocalStorage (Newest V3)
+            // 2. Fetch from LocalStorage (V3 - Single Source of Truth for Local)
             const localV3 = localStorage.getItem('agenda_events_2026_v3');
             if (localV3) {
-                setEvents(JSON.parse(localV3));
-                return;
+                try {
+                    localEvents = JSON.parse(localV3);
+                } catch (e) {
+                    console.error("Error parsing local V3", e);
+                }
+            } else {
+                // Formatting migration from V2 if V3 doesn't exist
+                const localV2 = localStorage.getItem('agenda_events_2026_v2');
+                if (localV2) {
+                    try {
+                        const parsed = JSON.parse(localV2);
+                        localEvents = parsed.map((e: any) => ({
+                            ...e,
+                            startDate: e.startDate || e.date,
+                            startTime: e.time ? e.time.split('-')[0]?.trim() : undefined,
+                            recurrence: 'NONE'
+                        }));
+                    } catch (e) { console.error("Error parsing local V2", e) }
+                } else {
+                    // Formatting migration from Legacy if V2 doesn't exist
+                    const localOld = localStorage.getItem('agenda_events_2026');
+                    if (localOld) {
+                        try {
+                            const parsed = JSON.parse(localOld);
+                            localEvents = parsed.map((e: any) => ({
+                                id: e.id,
+                                title: e.title,
+                                description: e.description || '',
+                                startDate: e.date || e.startDate || new Date().toISOString().split('T')[0],
+                                endDate: e.date || e.endDate || e.startDate,
+                                startTime: e.time || '00:00',
+                                type: 'EVENT',
+                                completed: false,
+                                recurrence: 'NONE'
+                            }));
+                        } catch (e) { console.error("Error parsing local Legacy", e) }
+                    }
+                }
             }
 
-            // 3. Fallback to LocalStorage (V2 - Recent)
-            const localV2 = localStorage.getItem('agenda_events_2026_v2');
-            if (localV2) {
-                const parsed = JSON.parse(localV2);
-                const mapped = parsed.map((e: any) => ({
-                    ...e,
-                    startDate: e.startDate || e.date, // normalizing
-                    startTime: e.time ? e.time.split('-')[0]?.trim() : undefined,
-                    recurrence: 'NONE'
-                }));
-                setEvents(mapped);
-                localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
-                return;
-            }
+            // 3. Identify Missing Events (In Local but NOT in Supabase)
+            // We use a Map to merge. Supabase takes precedence for updates, 
+            // but we must not lose Local events that haven't been synced yet.
+            const mergedEventsMap = new Map<string, AgendaEvent>();
 
-            // 4. Fallback to LocalStorage (Legacy/Original)
-            const localOld = localStorage.getItem('agenda_events_2026');
-            if (localOld) {
-                const parsed = JSON.parse(localOld);
-                // Map old format to new
-                const mapped = parsed.map((e: any) => ({
-                    id: e.id,
-                    title: e.title,
-                    description: e.description || '',
-                    startDate: e.date || e.startDate || new Date().toISOString().split('T')[0],
-                    endDate: e.date || e.endDate || e.startDate,
-                    startTime: e.time || '00:00',
-                    type: 'EVENT',
-                    completed: false,
-                    recurrence: 'NONE'
-                }));
-                setEvents(mapped);
-                localStorage.setItem('agenda_events_2026_v3', JSON.stringify(mapped));
+            // Add all Supabase events first
+            supabaseEvents.forEach(e => mergedEventsMap.set(e.id, e));
+
+            // Check Local events. If ID missing in map, it's a candidate to sync.
+            const eventsToSync: AgendaEvent[] = [];
+
+            localEvents.forEach(localE => {
+                if (!mergedEventsMap.has(localE.id)) {
+                    mergedEventsMap.set(localE.id, localE);
+                    eventsToSync.push(localE);
+                }
+            });
+
+            // 4. Update State Immediately
+            const allEvents = Array.from(mergedEventsMap.values());
+            setEvents(allEvents);
+
+            // Update LocalStorage to match the merged reality
+            localStorage.setItem('agenda_events_2026_v3', JSON.stringify(allEvents));
+
+            // 5. Background Sync: Upload missing events to Supabase
+            if (eventsToSync.length > 0) {
+                console.log(`Syncing ${eventsToSync.length} missing events to Supabase...`);
+                try {
+                    // Prepare for insertion
+                    const records = eventsToSync.map(e => ({
+                        id: e.id,
+                        user_id: user.id,
+                        title: e.title,
+                        description: e.description,
+                        start_date: e.startDate,
+                        end_date: e.endDate,
+                        time: e.startTime ? `${e.startTime} - ${e.endTime || ''}` : null,
+                        type: e.type,
+                        completed: e.completed,
+                        recurrence: e.recurrence,
+                        all_day: e.allDay
+                    }));
+
+                    const { error } = await supabase
+                        .from('agenda_events')
+                        .upsert(records);
+
+                    if (error) {
+                        console.error("Error syncing missing events:", error);
+                    } else {
+                        console.log("Successfully synced missing events.");
+                    }
+                } catch (err) {
+                    console.error("Critical error during sync:", err);
+                }
             }
         };
 
-        loadEvents();
+        loadAndSyncEvents();
     }, [user]);
 
     // Save functions
