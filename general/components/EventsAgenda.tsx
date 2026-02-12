@@ -157,17 +157,32 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             // We use a Map to merge. Supabase takes precedence for updates, 
             // but we must not lose Local events that haven't been synced yet.
             const mergedEventsMap = new Map<string, AgendaEvent>();
+            const existingSignatures = new Set<string>();
+
+            // Helper to create a signature for deduplication
+            const getEventSignature = (e: AgendaEvent) => {
+                return `${e.title}|${e.startDate}|${e.type}|${e.allDay}`;
+            };
 
             // Add all Supabase events first
-            supabaseEvents.forEach(e => mergedEventsMap.set(e.id, e));
+            supabaseEvents.forEach(e => {
+                mergedEventsMap.set(e.id, e);
+                existingSignatures.add(getEventSignature(e));
+            });
 
             // Check Local events. If ID missing in map, it's a candidate to sync.
             const eventsToSync: AgendaEvent[] = [];
 
             localEvents.forEach(localE => {
+                // strict ID check
                 if (!mergedEventsMap.has(localE.id)) {
-                    mergedEventsMap.set(localE.id, localE);
-                    eventsToSync.push(localE);
+                    // secondary content check to avoid ghost duplicates (different ID but same content)
+                    const signature = getEventSignature(localE);
+                    if (!existingSignatures.has(signature)) {
+                        mergedEventsMap.set(localE.id, localE);
+                        eventsToSync.push(localE);
+                        existingSignatures.add(signature);
+                    }
                 }
             });
 
@@ -466,7 +481,11 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                     {dayEvents.map(event => (
                                         <div
                                             key={event.id}
-                                            onClick={(e) => openEditModal(e, event)}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                openEditModal(e, event);
+                                            }}
+                                            onMouseDown={(e) => e.stopPropagation()}
                                             className={`px-2 py-1 text-xs font-bold rounded cursor-pointer ${EVENT_COLORS[event.type].bg} border-l-4 ${EVENT_COLORS[event.type].border}`}
                                         >
                                             {event.title}
@@ -537,7 +556,11 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                         return (
                                             <div
                                                 key={event.id}
-                                                onClick={(e) => openEditModal(e, event)}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    openEditModal(e, event);
+                                                }}
+                                                onMouseDown={(e) => e.stopPropagation()}
                                                 className={`absolute left-0.5 right-1 rounded px-2 py-1 text-sm font-semibold cursor-pointer overflow-hidden border-l-4 ${borderColor} hover:brightness-110 shadow-lg ${bgColor}`}
                                                 style={{ top: `${top}px`, height: `${height}px` }}
                                             >
@@ -704,6 +727,7 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                                             e.stopPropagation(); // prevent triggering new event logic
                                             openEditModal(e, event);
                                         }}
+                                        onMouseDown={(e) => e.stopPropagation()}
                                         className={`text-[10px] sm:text-xs font-medium px-1.5 py-0.5 rounded flex items-center gap-1 shadow-sm leading-tight
                                             ${EVENT_COLORS[event.type].bg} 
                                             ${EVENT_COLORS[event.type].border ? 'border-l-[3px] ' + EVENT_COLORS[event.type].border : ''} 
