@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import { Upload, FileText, Check, AlertCircle, Save, CheckCircle2, MessageSquare, Table as TableIcon, Trash2, Edit2, X, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { CapitalSocialAssistant } from './CapitalSocialAssistant';
 
 interface CapitalSocialRecord {
     id?: string; // Optional for new records
@@ -23,6 +24,7 @@ export const CapitalSocialLoader: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
     const [showTable, setShowTable] = useState(false); // Default: hidden
+    const [showAssistant, setShowAssistant] = useState(false);
 
     // Editing State
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -264,6 +266,18 @@ export const CapitalSocialLoader: React.FC = () => {
                                     {showTable ? 'Ocultar Tabela' : 'Ver Tabela'}
                                 </button>
                             )}
+
+                            {/* Assistant Toggle */}
+                            <button
+                                onClick={() => setShowAssistant(!showAssistant)}
+                                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${showAssistant
+                                        ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+                                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                                    }`}
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                                {showAssistant ? 'Ocultar IA' : 'Assistente IA'}
+                            </button>
                         </div>
                     </div>
 
@@ -433,6 +447,16 @@ export const CapitalSocialLoader: React.FC = () => {
                     </div>
                 )}
             </div>
+
+            {/* AI Assistant Sidebar */}
+            {showAssistant && (
+                <div className="shrink-0 h-full">
+                    <CapitalSocialAssistant
+                        data={activeData}
+                        onClose={() => setShowAssistant(false)}
+                    />
+                </div>
+            )}
         </div>
     );
 };
