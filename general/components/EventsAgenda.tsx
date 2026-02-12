@@ -250,6 +250,128 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
         loadAndSyncEvents();
     }, [user]);
 
+    // Manual Cleanup Handler
+    const [cleaning, setCleaning] = useState(false);
+    const handleManualCleanup = async () => {
+        if (!confirm("Isso vai excluir eventos duplicados do banco de dados. Deseja continuar?")) return;
+        setCleaning(true);
+        try {
+            // 1. Fetch EVERYTHING
+            const { data: allEvents, error } = await supabase
+                .from('agenda_events')
+                .select('*')
+                .eq('user_id', user?.id);
+
+            if (error) throw error;
+            if (!allEvents || allEvents.length === 0) {
+                alert("Nenhum evento encontrado.");
+                return;
+            }
+
+            // 2. Identify Duplicates
+            const uniqueSignatures = new Set<string>();
+            const duplicatesToDelete: string[] = [];
+
+            // Helper to normalize strings for comparison
+            const norm = (str: any) => String(str || '').trim().toLowerCase();
+
+            allEvents.forEach(e => {
+                // Signature: Title + Date + StartTime (if exists) + Type
+                const sig = `${norm(e.title)}|${e.date}|${norm(e.start_time)}|${e.type}`;
+
+                if (uniqueSignatures.has(sig)) {
+                    duplicatesToDelete.push(e.id);
+                } else {
+                    uniqueSignatures.add(sig);
+                }
+            });
+
+            // 3. Delete Duplicates
+            if (duplicatesToDelete.length > 0) {
+                const { error: delError } = await supabase
+                    .from('agenda_events')
+                    .delete()
+                    .in('id', duplicatesToDelete);
+
+                if (delError) throw delError;
+
+                // 4. Clear Local Storage to force re-sync
+                localStorage.removeItem('agenda_events_2026_v3');
+
+                alert(`Sucesso! ${duplicatesToDelete.length} duplicatas removidas. A página será recarregada.`);
+                window.location.reload();
+            } else {
+                alert("Nenhuma duplicata encontrada com os critérios atuais.");
+            }
+        } catch (err: any) {
+            console.error("Cleanup failed:", err);
+            alert("Erro ao limpar: " + err.message);
+        } finally {
+            setCleaning(false);
+        }
+    };
+
+    // Manual Cleanup Handler
+    const [cleaning, setCleaning] = useState(false);
+    const handleManualCleanup = async () => {
+        if (!confirm("Isso vai excluir eventos duplicados do banco de dados. Deseja continuar?")) return;
+        setCleaning(true);
+        try {
+            // 1. Fetch EVERYTHING
+            const { data: allEvents, error } = await supabase
+                .from('agenda_events')
+                .select('*')
+                .eq('user_id', user?.id);
+
+            if (error) throw error;
+            if (!allEvents || allEvents.length === 0) {
+                alert("Nenhum evento encontrado.");
+                return;
+            }
+
+            // 2. Identify Duplicates
+            const uniqueSignatures = new Set<string>();
+            const duplicatesToDelete: string[] = [];
+
+            // Helper to normalize strings for comparison
+            const norm = (str: any) => String(str || '').trim().toLowerCase();
+
+            allEvents.forEach(e => {
+                // Signature: Title + Date + StartTime (if exists) + Type
+                const sig = `${norm(e.title)}|${e.date}|${norm(e.start_time)}|${e.type}`;
+
+                if (uniqueSignatures.has(sig)) {
+                    duplicatesToDelete.push(e.id);
+                } else {
+                    uniqueSignatures.add(sig);
+                }
+            });
+
+            // 3. Delete Duplicates
+            if (duplicatesToDelete.length > 0) {
+                const { error: delError } = await supabase
+                    .from('agenda_events')
+                    .delete()
+                    .in('id', duplicatesToDelete);
+
+                if (delError) throw delError;
+
+                // 4. Clear Local Storage to force re-sync
+                localStorage.removeItem('agenda_events_2026_v3');
+
+                alert(`Sucesso! ${duplicatesToDelete.length} duplicatas removidas. A página será recarregada.`);
+                window.location.reload();
+            } else {
+                alert("Nenhuma duplicata encontrada com os critérios atuais.");
+            }
+        } catch (err: any) {
+            console.error("Cleanup failed:", err);
+            alert("Erro ao limpar: " + err.message);
+        } finally {
+            setCleaning(false);
+        }
+    };
+
     // Save functions
     const persistEvent = async (event: AgendaEvent, isDelete = false) => {
         // Local Update
@@ -791,6 +913,16 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         <Plus className="w-6 h-6" />
                         <span className="font-medium">Criar</span>
                     </button>
+
+
+                    <button
+                        onClick={handleManualCleanup}
+                        disabled={cleaning}
+                        className="w-full mt-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-800/50 font-medium py-2 px-4 rounded-xl transition-all text-xs flex items-center justify-center gap-2"
+                    >
+                        <Trash2 className="w-3 h-3" />
+                        {cleaning ? 'Limpando...' : 'Corrigir Duplicatas'}
+                    </button>
                 </div>
 
                 {/* Mini Calendar (Simplified) */}
@@ -915,166 +1047,168 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             </div>
 
             {/* Event Modal - Redesigned */}
-            {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowModal(false)}>
-                    <div
-                        onClick={e => e.stopPropagation()}
-                        className={`${isDarkMode ? 'bg-[#121212]/90 border-white/10' : 'bg-white/95 border-gray-200'} border backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100`}
-                    >
-                        {/* Modal Header */}
-                        <div className={`flex items-center justify-between p-6 pb-2`}>
-                            <h3 className={`text-xl font-bold ${theme.text}`}>
-                                {selectedEvent ? 'Editar Evento' : 'Novo Evento'}
-                            </h3>
-                            <div className="flex items-center gap-1">
-                                {selectedEvent && (
-                                    <button
-                                        onClick={handleDelete}
-                                        className="p-2 hover:bg-red-500/20 text-red-500 rounded-full transition-colors"
-                                    >
-                                        <Trash2 className="w-5 h-5" />
+            {
+                showModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setShowModal(false)}>
+                        <div
+                            onClick={e => e.stopPropagation()}
+                            className={`${isDarkMode ? 'bg-[#121212]/90 border-white/10' : 'bg-white/95 border-gray-200'} border backdrop-blur-md rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all scale-100`}
+                        >
+                            {/* Modal Header */}
+                            <div className={`flex items-center justify-between p-6 pb-2`}>
+                                <h3 className={`text-xl font-bold ${theme.text}`}>
+                                    {selectedEvent ? 'Editar Evento' : 'Novo Evento'}
+                                </h3>
+                                <div className="flex items-center gap-1">
+                                    {selectedEvent && (
+                                        <button
+                                            onClick={handleDelete}
+                                            className="p-2 hover:bg-red-500/20 text-red-500 rounded-full transition-colors"
+                                        >
+                                            <Trash2 className="w-5 h-5" />
+                                        </button>
+                                    )}
+                                    <button onClick={() => setShowModal(false)} className={`p-2 ${theme.hover} rounded-full transition-colors`}>
+                                        <X className={`w-5 h-5 ${theme.textSec}`} />
                                     </button>
-                                )}
-                                <button onClick={() => setShowModal(false)} className={`p-2 ${theme.hover} rounded-full transition-colors`}>
-                                    <X className={`w-5 h-5 ${theme.textSec}`} />
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Modal Content */}
-                        <div className="p-6 pt-2 space-y-6">
-                            {/* Title Input - Large & Clean */}
-                            <div className="relative group">
-                                <input
-                                    type="text"
-                                    placeholder="Adicionar título"
-                                    value={formTitle}
-                                    onChange={e => setFormTitle(e.target.value)}
-                                    className={`w-full text-2xl font-medium bg-transparent border-b-2 ${theme.border} focus:border-blue-500 outline-none py-2 px-1 placeholder:text-gray-500/50 transition-colors ${theme.text}`}
-                                    autoFocus
-                                />
+                                </div>
                             </div>
 
-                            {/* Type Selector - Capsules */}
-                            <div className="flex gap-2">
-                                {(['EVENT', 'MEETING', 'TASK', 'REMINDER'] as AgendaEvent['type'][]).map(t => (
-                                    <button
-                                        key={t}
-                                        onClick={() => setFormType(t)}
-                                        className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all
-                                            ${formType === t
-                                                ? (t === 'EVENT' ? 'bg-cyan-600 text-white' : t === 'MEETING' ? 'bg-blue-600 text-white' : t === 'TASK' ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white')
-                                                : `${isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'} ${theme.textSec}`
-                                            }
-                                        `}
-                                    >
-                                        {t === 'EVENT' ? 'EVENTO' : t === 'MEETING' ? 'REUNIÃO' : t === 'TASK' ? 'TAREFA' : 'LEMBRETE'}
-                                    </button>
-                                ))}
-                            </div>
-
-                            {/* Date & Time Section */}
-                            <div className={`space-y-4 p-4 rounded-xl ${theme.bgSec}`}>
-                                {/* All Day Toggle */}
-                                <label className="flex items-center gap-3 cursor-pointer group">
-                                    <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formAllDay ? 'bg-blue-500 border-blue-500' : `border-gray-500 ${isDarkMode ? 'bg-transparent' : 'bg-white'}`}`}>
-                                        {formAllDay && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                                    </div>
+                            {/* Modal Content */}
+                            <div className="p-6 pt-2 space-y-6">
+                                {/* Title Input - Large & Clean */}
+                                <div className="relative group">
                                     <input
-                                        type="checkbox"
-                                        checked={formAllDay}
-                                        onChange={e => setFormAllDay(e.target.checked)}
-                                        className="hidden"
+                                        type="text"
+                                        placeholder="Adicionar título"
+                                        value={formTitle}
+                                        onChange={e => setFormTitle(e.target.value)}
+                                        className={`w-full text-2xl font-medium bg-transparent border-b-2 ${theme.border} focus:border-blue-500 outline-none py-2 px-1 placeholder:text-gray-500/50 transition-colors ${theme.text}`}
+                                        autoFocus
                                     />
-                                    <span className={`text-sm font-medium ${theme.text}`}>Dia inteiro</span>
-                                </label>
+                                </div>
 
-                                <div className="flex flex-col gap-3">
-                                    {/* Dates */}
-                                    <div className="flex items-center gap-2">
-                                        <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
-                                            <CalendarIcon className={`w-4 h-4 ${theme.textSec}`} />
-                                            <input
-                                                type="date"
-                                                value={formStartDate}
-                                                onChange={e => setFormStartDate(e.target.value)}
-                                                className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
-                                            />
+                                {/* Type Selector - Capsules */}
+                                <div className="flex gap-2">
+                                    {(['EVENT', 'MEETING', 'TASK', 'REMINDER'] as AgendaEvent['type'][]).map(t => (
+                                        <button
+                                            key={t}
+                                            onClick={() => setFormType(t)}
+                                            className={`px-3 py-1.5 rounded-full text-xs font-bold tracking-wider transition-all
+                                            ${formType === t
+                                                    ? (t === 'EVENT' ? 'bg-cyan-600 text-white' : t === 'MEETING' ? 'bg-blue-600 text-white' : t === 'TASK' ? 'bg-emerald-600 text-white' : 'bg-amber-600 text-white')
+                                                    : `${isDarkMode ? 'bg-white/5 hover:bg-white/10' : 'bg-black/5 hover:bg-black/10'} ${theme.textSec}`
+                                                }
+                                        `}
+                                        >
+                                            {t === 'EVENT' ? 'EVENTO' : t === 'MEETING' ? 'REUNIÃO' : t === 'TASK' ? 'TAREFA' : 'LEMBRETE'}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Date & Time Section */}
+                                <div className={`space-y-4 p-4 rounded-xl ${theme.bgSec}`}>
+                                    {/* All Day Toggle */}
+                                    <label className="flex items-center gap-3 cursor-pointer group">
+                                        <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${formAllDay ? 'bg-blue-500 border-blue-500' : `border-gray-500 ${isDarkMode ? 'bg-transparent' : 'bg-white'}`}`}>
+                                            {formAllDay && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                                         </div>
-                                        {formAllDay && <span className={theme.textSec}>até</span>}
-                                        {formAllDay && (
+                                        <input
+                                            type="checkbox"
+                                            checked={formAllDay}
+                                            onChange={e => setFormAllDay(e.target.checked)}
+                                            className="hidden"
+                                        />
+                                        <span className={`text-sm font-medium ${theme.text}`}>Dia inteiro</span>
+                                    </label>
+
+                                    <div className="flex flex-col gap-3">
+                                        {/* Dates */}
+                                        <div className="flex items-center gap-2">
                                             <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
                                                 <CalendarIcon className={`w-4 h-4 ${theme.textSec}`} />
                                                 <input
                                                     type="date"
-                                                    value={formEndDate}
-                                                    onChange={e => setFormEndDate(e.target.value)}
+                                                    value={formStartDate}
+                                                    onChange={e => setFormStartDate(e.target.value)}
                                                     className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
                                                 />
+                                            </div>
+                                            {formAllDay && <span className={theme.textSec}>até</span>}
+                                            {formAllDay && (
+                                                <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                                    <CalendarIcon className={`w-4 h-4 ${theme.textSec}`} />
+                                                    <input
+                                                        type="date"
+                                                        value={formEndDate}
+                                                        onChange={e => setFormEndDate(e.target.value)}
+                                                        className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                                    />
+                                                </div>
+                                            )}
+                                        </div>
+
+                                        {/* Times (if not all day) */}
+                                        {!formAllDay && (
+                                            <div className="flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
+                                                <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                                    <Clock className={`w-4 h-4 ${theme.textSec}`} />
+                                                    <input
+                                                        type="time"
+                                                        value={formStartTime}
+                                                        onChange={e => setFormStartTime(e.target.value)}
+                                                        className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                                    />
+                                                </div>
+                                                <span className={theme.textSec}>-</span>
+                                                <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
+                                                    <Clock className={`w-4 h-4 ${theme.textSec}`} />
+                                                    <input
+                                                        type="time"
+                                                        value={formEndTime}
+                                                        onChange={e => setFormEndTime(e.target.value)}
+                                                        className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
+                                                    />
+                                                </div>
                                             </div>
                                         )}
                                     </div>
-
-                                    {/* Times (if not all day) */}
-                                    {!formAllDay && (
-                                        <div className="flex items-center gap-2 animate-in slide-in-from-top-2 duration-200">
-                                            <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
-                                                <Clock className={`w-4 h-4 ${theme.textSec}`} />
-                                                <input
-                                                    type="time"
-                                                    value={formStartTime}
-                                                    onChange={e => setFormStartTime(e.target.value)}
-                                                    className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
-                                                />
-                                            </div>
-                                            <span className={theme.textSec}>-</span>
-                                            <div className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderSec} ${isDarkMode ? 'bg-black/20' : 'bg-white'}`}>
-                                                <Clock className={`w-4 h-4 ${theme.textSec}`} />
-                                                <input
-                                                    type="time"
-                                                    value={formEndTime}
-                                                    onChange={e => setFormEndTime(e.target.value)}
-                                                    className={`bg-transparent outline-none text-sm w-full ${theme.text}`}
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
-                            </div>
 
-                            {/* Recurrence */}
-                            <div className={`flex items-center gap-3 p-3 rounded-xl border ${theme.borderSec} ${theme.hover} cursor-pointer`} onClick={() => setFormRecurrence(formRecurrence === 'NONE' ? 'WEEKLY' : 'NONE')}>
-                                <Repeat className={`w-5 h-5 ${formRecurrence === 'WEEKLY' ? 'text-blue-500' : theme.textSec}`} />
-                                <div className="flex-1">
-                                    <div className={`text-sm font-medium ${theme.text}`}>Repetir semanalmente</div>
-                                    <div className={`text-xs ${theme.textSec}`}>
-                                        {formRecurrence === 'WEEKLY' ? 'Ocorre toda semana neste horário' : 'Não se repete'}
+                                {/* Recurrence */}
+                                <div className={`flex items-center gap-3 p-3 rounded-xl border ${theme.borderSec} ${theme.hover} cursor-pointer`} onClick={() => setFormRecurrence(formRecurrence === 'NONE' ? 'WEEKLY' : 'NONE')}>
+                                    <Repeat className={`w-5 h-5 ${formRecurrence === 'WEEKLY' ? 'text-blue-500' : theme.textSec}`} />
+                                    <div className="flex-1">
+                                        <div className={`text-sm font-medium ${theme.text}`}>Repetir semanalmente</div>
+                                        <div className={`text-xs ${theme.textSec}`}>
+                                            {formRecurrence === 'WEEKLY' ? 'Ocorre toda semana neste horário' : 'Não se repete'}
+                                        </div>
+                                    </div>
+                                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${formRecurrence === 'WEEKLY' ? 'bg-blue-500 border-blue-500' : `border-gray-500 ${isDarkMode ? 'bg-transparent' : 'bg-white'}`}`}>
+                                        {formRecurrence === 'WEEKLY' && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
                                     </div>
                                 </div>
-                                <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${formRecurrence === 'WEEKLY' ? 'bg-blue-500 border-blue-500' : `border-gray-500 ${isDarkMode ? 'bg-transparent' : 'bg-white'}`}`}>
-                                    {formRecurrence === 'WEEKLY' && <CheckCircle2 className="w-3.5 h-3.5 text-white" />}
-                                </div>
+                            </div>
+
+                            {/* Footer Actions */}
+                            <div className={`p-4 border-t ${theme.border} flex justify-end gap-3 ${theme.bgSec}`}>
+                                <button
+                                    onClick={() => setShowModal(false)}
+                                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${theme.bg} ${theme.text} hover:opacity-80`}
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    className="px-6 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all transform hover:scale-105"
+                                >
+                                    Salvar
+                                </button>
                             </div>
                         </div>
-
-                        {/* Footer Actions */}
-                        <div className={`p-4 border-t ${theme.border} flex justify-end gap-3 ${theme.bgSec}`}>
-                            <button
-                                onClick={() => setShowModal(false)}
-                                className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${theme.bg} ${theme.text} hover:opacity-80`}
-                            >
-                                Cancelar
-                            </button>
-                            <button
-                                onClick={handleSave}
-                                className="px-6 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-500 shadow-lg shadow-blue-500/20 transition-all transform hover:scale-105"
-                            >
-                                Salvar
-                            </button>
-                        </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )
+            }
+        </div >
     );
 };
