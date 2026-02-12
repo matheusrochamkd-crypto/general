@@ -164,11 +164,31 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                 return `${e.title}|${e.startDate}|${e.type}|${e.allDay}`;
             };
 
-            // Add all Supabase events first
+            // Add all Supabase events first, ensuring NO DUPLICATES exist in the source
+            const seenSignatures = new Set<string>();
+            const duplicatesToDelete: string[] = [];
+
             supabaseEvents.forEach(e => {
-                mergedEventsMap.set(e.id, e);
-                existingSignatures.add(getEventSignature(e));
+                const signature = getEventSignature(e);
+                if (seenSignatures.has(signature)) {
+                    // It's a duplicate! Mark for deletion and do NOT add to map
+                    duplicatesToDelete.push(e.id);
+                } else {
+                    seenSignatures.add(signature);
+                    mergedEventsMap.set(e.id, e);
+                    existingSignatures.add(signature);
+                }
             });
+
+            // If we found duplicates in Supabase, delete them to clean up the DB
+            if (duplicatesToDelete.length > 0) {
+                console.log(`[Deduplication] Removing ${duplicatesToDelete.length} duplicate events from Supabase...`);
+                // We do this asynchronously to not block the UI render
+                supabase.from('agenda_events').delete().in('id', duplicatesToDelete).then(({ error }) => {
+                    if (error) console.error("Error deleting duplicates:", error);
+                    else console.log("Duplicates deleted successfully.");
+                });
+            }
 
             // Check Local events. If ID missing in map, it's a candidate to sync.
             const eventsToSync: AgendaEvent[] = [];
