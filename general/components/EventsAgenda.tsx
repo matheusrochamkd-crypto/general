@@ -76,21 +76,20 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
     const [formRecurrence, setFormRecurrence] = useState<'WEEKLY' | 'NONE'>('NONE');
     const [formAllDay, setFormAllDay] = useState(false);
 
-    // Data Loading — Supabase is the SINGLE source of truth
+    // Data Loading — Supabase is the SINGLE source of truth (global, no user_id filter)
     useEffect(() => {
         const loadEvents = async () => {
-            if (!user) return;
+            // Clean any remaining localStorage keys permanently
+            ['agenda_events_2026_v3', 'agenda_events_2026_v2', 'agenda_events_2026'].forEach(k => localStorage.removeItem(k));
 
-            // 1. Fetch from Supabase (single source of truth)
-            let supabaseEvents: AgendaEvent[] = [];
+            // Fetch ALL events from Supabase (global — visible to all profiles)
             try {
                 const { data, error } = await supabase
                     .from('agenda_events')
-                    .select('*')
-                    .eq('user_id', user.id);
+                    .select('*');
 
                 if (data && !error) {
-                    supabaseEvents = data.map((e: any) => ({
+                    setEvents(data.map((e: any) => ({
                         id: e.id,
                         title: e.title,
                         description: e.description || '',
@@ -102,143 +101,17 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         completed: e.completed || false,
                         recurrence: e.recurrence || 'NONE',
                         allDay: e.all_day || false
-                    }));
+                    })));
                 }
             } catch (err) {
                 console.error("Supabase load error", err);
             }
-
-            // 2. Deduplicate Supabase events by signature (title+date+type)
-            const seenSignatures = new Set<string>();
-            const duplicatesToDelete: string[] = [];
-            const uniqueEvents: AgendaEvent[] = [];
-
-            const getEventSignature = (e: AgendaEvent) =>
-                `${e.title}|${e.startDate}|${e.type}|${e.startTime || ''}`;
-
-            supabaseEvents.forEach(e => {
-                const sig = getEventSignature(e);
-                if (seenSignatures.has(sig)) {
-                    duplicatesToDelete.push(e.id);
-                } else {
-                    seenSignatures.add(sig);
-                    uniqueEvents.push(e);
-                }
-            });
-
-            // Clean duplicates from DB in the background
-            if (duplicatesToDelete.length > 0) {
-                console.log(`[Dedup] Removing ${duplicatesToDelete.length} duplicates from Supabase...`);
-                supabase.from('agenda_events').delete().in('id', duplicatesToDelete).then(({ error }) => {
-                    if (error) console.error("Error deleting duplicates:", error);
-                    else console.log("Duplicates cleaned.");
-                });
-            }
-
-            // 3. One-time migration: push any localStorage-only events to Supabase, then delete all localStorage keys
-            const localKeys = ['agenda_events_2026_v3', 'agenda_events_2026_v2', 'agenda_events_2026'];
-            const hasLocalData = localKeys.some(k => localStorage.getItem(k) !== null);
-
-            if (hasLocalData) {
-                let localEvents: AgendaEvent[] = [];
-                const localV3 = localStorage.getItem('agenda_events_2026_v3');
-                if (localV3) {
-                    try { localEvents = JSON.parse(localV3); } catch (_) { }
-                }
-
-                // Find events in local that are NOT in Supabase (by signature)
-                const toSync = localEvents.filter(le => {
-                    const sig = getEventSignature(le);
-                    return !seenSignatures.has(sig);
-                });
-
-                if (toSync.length > 0) {
-                    console.log(`[Migration] Syncing ${toSync.length} local-only events to Supabase...`);
-                    const records = toSync.map(e => ({
-                        id: e.id,
-                        user_id: user.id,
-                        title: e.title,
-                        description: e.description,
-                        start_date: e.startDate,
-                        end_date: e.endDate,
-                        time: e.startTime ? `${e.startTime} - ${e.endTime || ''}` : null,
-                        type: e.type,
-                        completed: e.completed,
-                        recurrence: e.recurrence,
-                        all_day: e.allDay
-                    }));
-                    await supabase.from('agenda_events').upsert(records).then(({ error }) => {
-                        if (error) console.error("Migration sync error:", error);
-                    });
-                    // Add synced events to our list
-                    toSync.forEach(e => uniqueEvents.push(e));
-                }
-
-                // Permanently delete all localStorage keys to prevent future ghost re-syncs
-                localKeys.forEach(k => localStorage.removeItem(k));
-                console.log('[Migration] localStorage keys cleaned permanently.');
-            }
-
-            // 4. Set state
-            setEvents(uniqueEvents);
         };
 
         loadEvents();
-    }, [user]);
+    }, []);
 
-    // Manual Cleanup Handler
-    const [cleaning, setCleaning] = useState(false);
-    const handleManualCleanup = async () => {
-        if (!confirm("Isso vai excluir eventos duplicados do banco de dados. Deseja continuar?")) return;
-        setCleaning(true);
-        try {
-            const { data: allEvents, error } = await supabase
-                .from('agenda_events')
-                .select('*')
-                .eq('user_id', user?.id);
-
-            if (error) throw error;
-            if (!allEvents || allEvents.length === 0) {
-                alert("Nenhum evento encontrado.");
-                return;
-            }
-
-            const uniqueSignatures = new Set<string>();
-            const duplicatesToDelete: string[] = [];
-            const norm = (str: any) => String(str || '').trim().toLowerCase();
-
-            allEvents.forEach(e => {
-                // Use correct DB column names: start_date, time
-                const sig = `${norm(e.title)}|${e.start_date}|${norm(e.time)}|${e.type}`;
-                if (uniqueSignatures.has(sig)) {
-                    duplicatesToDelete.push(e.id);
-                } else {
-                    uniqueSignatures.add(sig);
-                }
-            });
-
-            if (duplicatesToDelete.length > 0) {
-                const { error: delError } = await supabase
-                    .from('agenda_events')
-                    .delete()
-                    .in('id', duplicatesToDelete);
-
-                if (delError) throw delError;
-
-                alert(`Sucesso! ${duplicatesToDelete.length} duplicatas removidas. A página será recarregada.`);
-                window.location.reload();
-            } else {
-                alert("Nenhuma duplicata encontrada.");
-            }
-        } catch (err: any) {
-            console.error("Cleanup failed:", err);
-            alert("Erro ao limpar: " + err.message);
-        } finally {
-            setCleaning(false);
-        }
-    };
-
-    // Save functions — Supabase only, no localStorage
+    // Save functions — Supabase only, global events
     const persistEvent = async (event: AgendaEvent, isDelete = false) => {
         // Optimistic UI update
         if (isDelete) {
@@ -251,14 +124,14 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
             });
         }
 
-        // Persist to Supabase
+        // Persist to Supabase (global — no user_id dependency)
         try {
             if (isDelete) {
                 await supabase.from('agenda_events').delete().eq('id', event.id);
             } else {
                 await supabase.from('agenda_events').upsert({
                     id: event.id,
-                    user_id: user?.id,
+                    user_id: user?.id || null,
                     title: event.title,
                     description: event.description,
                     start_date: event.startDate,
@@ -776,15 +649,6 @@ export const EventsAgenda: React.FC<EventsAgendaProps> = ({ onBack }) => {
                         <span className="font-medium">Criar</span>
                     </button>
 
-
-                    <button
-                        onClick={handleManualCleanup}
-                        disabled={cleaning}
-                        className="w-full mt-3 bg-red-900/20 hover:bg-red-900/40 text-red-400 border border-red-800/50 font-medium py-2 px-4 rounded-xl transition-all text-xs flex items-center justify-center gap-2"
-                    >
-                        <Trash2 className="w-3 h-3" />
-                        {cleaning ? 'Limpando...' : 'Corrigir Duplicatas'}
-                    </button>
                 </div>
 
                 {/* Mini Calendar (Simplified) */}

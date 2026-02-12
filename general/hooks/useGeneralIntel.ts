@@ -45,7 +45,6 @@ export const useGeneralIntel = () => {
             const { data: eventsData } = await supabase
                 .from('agenda_events')
                 .select('*')
-                .eq('user_id', user.id)
                 .gte('start_date', new Date().toISOString().split('T')[0])
                 .order('start_date', { ascending: true })
                 .limit(10);
